@@ -1,0 +1,20 @@
+# Datos originales: pesan demasiado para GitHub (límite de 100 MB por archivo)
+data/raw/*
+!data/raw/.gitkeep
+
+# Material de la cátedra: solo referencia local
+material_catedra/
+
+# Archivos pesados o temporales
+*.zip
+*.pkl
+*.parquet
+*.csv
+!data/processed/*.csv
+!data/processed/*.csv.gz
+
+# Python / Colab / sistema
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+.env
