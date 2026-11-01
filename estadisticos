@@ -1,8 +1,6 @@
 """
 Subte de Buenos Aires (2015-2026): recuperación post-pandemia y patrones por día y horario.
 
-Este script asume que los datasets ya se encuentran limpios y estructurados.
-Carga los archivos gzip anuales de molinetes y calcula los estadísticos.
 """
 import os
 from pathlib import Path
