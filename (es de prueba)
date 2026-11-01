@@ -1,0 +1,287 @@
+"""
+Subte de Buenos Aires (2015-2026): recuperación post-pandemia y patrones por día y horario.
+
+Fuente: "Subte: Viajes Molinetes" (data.buenosaires.gob.ar), CSV por año con ingresos
+por molinete en tramos de 15 minutos.
+
+Preguntas:
+    1) ¿Recuperó el subte la demanda después de la pandemia?
+    2) ¿Cómo cambia la demanda según días y horarios?
+
+Uso:
+    1. Poner los CSV del subte en la carpeta ./data (o cambiar DATA_DIR).
+    2. python analisis_subte.py
+
+Requiere pandas >= 2.0. Opcional: `pip install holidays` para excluir feriados
+de los días laborables.
+"""
+import re
+import unicodedata
+from pathlib import Path
+
+import pandas as pd
+
+# --------------------------------------------------------------------------- #
+# Configuración
+# --------------------------------------------------------------------------- #
+DATA_DIR = Path("data")
+OUT_DIR = Path("resultados")
+ANIO_MIN, ANIO_MAX = 2015, 2026
+ANIO_BASE = 2019              # último año "normal" previo a la pandemia
+MIN_HORAS_POR_DIA = 10        # días con menos horas de datos se consideran incompletos
+MAX_PAX_15MIN = 1000          # tope plausible de ingresos por fila (outliers/errores)
+
+DIAS = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]
+MESES_ES = {1: "ene", 2: "feb", 3: "mar", 4: "abr", 5: "may", 6: "jun",
+            7: "jul", 8: "ago", 9: "sep", 10: "oct", 11: "nov", 12: "dic"}
+
+# Nombres de columna posibles (ya normalizados) -> nombre estándar
+ALIAS = {
+    "fecha": "fecha", "dia": "fecha",
+    "desde": "desde", "hora_desde": "desde", "hora_inicio": "desde", "hora": "desde",
+    "linea": "linea",
+    "pax_pagos": "pax_pagos", "pax_pases_pagos": "pax_pases_pagos",
+    "pax_franq": "pax_franq",
+    "total": "total", "pax_total": "total",
+}
+
+
+# --------------------------------------------------------------------------- #
+# Limpieza
+# --------------------------------------------------------------------------- #
+def normalizar_texto(x) -> str:
+    """minúsculas, sin tildes, caracteres no alfanuméricos -> '_'."""
+    x = unicodedata.normalize("NFKD", str(x)).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "_", x.lower()).strip("_")
+
+
+def leer_csv(path: Path) -> pd.DataFrame:
+    """Lee un CSV detectando separador y quedándose solo con columnas útiles."""
+    with open(path, encoding="utf-8-sig", errors="replace") as f:
+        cabecera = f.readline()
+    sep = ";" if cabecera.count(";") > cabecera.count(",") else ","
+
+    df = pd.read_csv(
+        path, sep=sep, encoding="utf-8-sig", encoding_errors="replace",
+        usecols=lambda c: normalizar_texto(c) in ALIAS,
+        dtype=str, low_memory=False,
+    )
+    # Si hay dos columnas que mapean al mismo nombre (ej. "hora" y "desde"), se queda la primera
+    df.columns = [ALIAS[normalizar_texto(c)] for c in df.columns]
+    df = df.loc[:, ~df.columns.duplicated()]
+
+    faltan = {"fecha", "desde", "linea"} - set(df.columns)
+    if faltan or not ({"total", "pax_pagos"} & set(df.columns)):
+        raise ValueError(f"{path.name}: faltan columnas {faltan or 'de pasajeros'}")
+    return df
+
+
+def mapear_unicos(serie: pd.Series, funcion) -> pd.Series:
+    """Aplica `funcion` solo a los valores únicos (mucho más rápido en millones de filas)."""
+    mapa = {v: funcion(v) for v in serie.dropna().unique()}
+    return serie.map(mapa)
+
+
+def parsear_fecha(valor):
+    """ISO (aaaa-mm-dd) se lee tal cual; el resto se asume dd/mm/aaaa (formato local)."""
+    valor = str(valor).strip()
+    if re.match(r"\d{4}-\d{2}-\d{2}", valor):
+        return pd.to_datetime(valor[:10], errors="coerce", format="%Y-%m-%d")
+    return pd.to_datetime(valor, errors="coerce", format="mixed", dayfirst=True)
+
+
+def parsear_linea(valor):
+    s = re.sub(r"l\W?nea", " ", normalizar_texto(valor).replace("_", " "))
+    letras = re.findall(r"\b([a-h])\b", s)
+    return letras[-1].upper() if letras else None
+
+
+def limpiar_archivo(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Estandariza tipos, descarta filas inválidas y agrega a (fecha, hora, linea)."""
+    log = {"filas": len(df)}
+    df = df.drop_duplicates()
+    log["duplicadas"] = log["filas"] - len(df)
+
+    df["fecha"] = mapear_unicos(df["fecha"], parsear_fecha).dt.normalize()
+    df["hora"] = pd.to_numeric(df["desde"].str.extract(r"(\d{1,2}):\d{2}")[0], errors="coerce")
+    df["linea"] = mapear_unicos(df["linea"], parsear_linea)
+
+    for c in ["pax_pagos", "pax_pases_pagos", "pax_franq", "total"]:
+        if c in df:
+            df[c] = pd.to_numeric(df[c].str.replace(",", ".", regex=False), errors="coerce")
+    # Si no hay 'total' (o está vacío) se reconstruye sumando los componentes
+    componentes = df[[c for c in ["pax_pagos", "pax_pases_pagos", "pax_franq"] if c in df]]
+    suma = componentes.sum(axis=1, min_count=1)
+    df["total"] = df["total"].fillna(suma) if "total" in df else suma
+
+    validas = (
+        df["fecha"].between(f"{ANIO_MIN}-01-01", f"{ANIO_MAX}-12-31")
+        & df["hora"].between(0, 23)
+        & df["linea"].notna()
+        & df["total"].between(0, MAX_PAX_15MIN)   # descarta NaN, negativos y outliers
+    )
+    log["invalidas"] = int((~validas).sum())
+    df = df[validas]
+
+    agregado = (df.groupby(["fecha", df["hora"].astype(int), "linea"], as_index=False)["total"].sum())
+    return agregado, log
+
+
+def cargar_datos() -> pd.DataFrame:
+    """Carga todos los CSV, limpia y devuelve totales por (fecha, hora, línea)."""
+    archivos = sorted(DATA_DIR.glob("*.csv"))
+    if not archivos:
+        raise FileNotFoundError(f"No hay CSV en {DATA_DIR.resolve()}")
+
+    partes = []
+    for a in archivos:
+        try:
+            agg, log = limpiar_archivo(leer_csv(a))
+        except ValueError as e:
+            print(f"[omitido] {e}")
+            continue
+        agg["archivo"] = a.name
+        partes.append(agg)
+        print(f"{a.name}: {log['filas']:,} filas | {log['duplicadas']:,} duplicadas | "
+              f"{log['invalidas']:,} inválidas")
+
+    datos = pd.concat(partes, ignore_index=True)
+
+    # Si una fecha aparece en más de un archivo (solapamiento), se conserva el más completo
+    por_archivo = datos.groupby(["fecha", "archivo"], as_index=False)["total"].sum()
+    mejor = por_archivo.sort_values("total").drop_duplicates("fecha", keep="last")[["fecha", "archivo"]]
+    solapadas = por_archivo["fecha"].duplicated().sum()
+    if solapadas:
+        print(f"Fechas presentes en más de un archivo: {solapadas} (se conserva la más completa)")
+    return datos.merge(mejor, on=["fecha", "archivo"]).drop(columns="archivo")
+
+
+# --------------------------------------------------------------------------- #
+# Variables derivadas
+# --------------------------------------------------------------------------- #
+def agregar_calendario(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["anio"] = df["fecha"].dt.year
+    df["mes"] = df["fecha"].dt.month
+    df["dia_semana"] = pd.Categorical(
+        df["fecha"].dt.dayofweek.map(dict(enumerate(DIAS))), categories=DIAS, ordered=True)
+
+    df["tipo_dia"] = df["dia_semana"].map(
+        lambda d: "laborable" if d in DIAS[:5] else d).astype(str)
+    try:  # feriados nacionales se tratan como domingo
+        import holidays
+        feriados = holidays.AR(years=range(ANIO_MIN, ANIO_MAX + 1))
+        df.loc[df["fecha"].dt.date.isin(feriados.keys()), "tipo_dia"] = "feriado"
+    except ImportError:
+        pass
+
+    df["etapa"] = pd.cut(df["anio"], bins=[0, 2019, 2021, 9999],
+                         labels=["1_pre (2015-19)", "2_pandemia (2020-21)", "3_post (2022+)"])
+    return df
+
+
+def franja_horaria(hora: pd.Series) -> pd.Series:
+    return pd.cut(hora, bins=[-1, 5, 9, 15, 19, 23],
+                  labels=["0-5 madrugada", "6-9 pico mañana", "10-15 valle",
+                          "16-19 pico tarde", "20-23 noche"])
+
+
+# --------------------------------------------------------------------------- #
+# Estadísticos
+# --------------------------------------------------------------------------- #
+def resumen(df: pd.DataFrame, por, col: str = "total") -> pd.DataFrame:
+    """Estadísticos de resumen agrupados con .groupby()."""
+    g = df.groupby(por, observed=True)[col]
+    out = g.agg(n="count", media="mean", mediana="median", desvio="std",
+                p25=lambda x: x.quantile(0.25), p75=lambda x: x.quantile(0.75),
+                minimo="min", maximo="max")
+    out["cv_pct"] = out["desvio"] / out["media"] * 100
+    return out.round(1)
+
+
+def main():
+    OUT_DIR.mkdir(exist_ok=True)
+
+    # ---- 1. Datos limpios ---------------------------------------------------
+    horario = cargar_datos()                                   # fecha, hora, linea, total
+    cal = agregar_calendario(horario[["fecha"]].drop_duplicates())
+
+    # Total diario de toda la red (se descartan días incompletos o sin datos)
+    diario = horario.groupby("fecha").agg(total=("total", "sum"), horas=("hora", "nunique")).reset_index()
+    descartados = ((diario["horas"] < MIN_HORAS_POR_DIA) | (diario["total"] <= 0)).sum()
+    diario = diario[(diario["horas"] >= MIN_HORAS_POR_DIA) & (diario["total"] > 0)]
+    diario = diario.merge(cal, on="fecha")
+    print(f"\nDías válidos: {len(diario):,} | días descartados por incompletos: {descartados}")
+
+    laborables = diario[diario["tipo_dia"] == "laborable"]
+    ultimo = int(diario["anio"].max())
+
+    # ---- 2. Pregunta 1: ¿se recuperó la demanda? ------------------------------
+    # (a) Promedio de pasajeros por día laborable, por año
+    anual = resumen(laborables, "anio")
+    anual["indice_vs_base"] = (anual["media"] / anual.loc[ANIO_BASE, "media"] * 100).round(1)
+
+    # (b) Mismo período: el último año está incompleto, se comparan solo sus meses
+    meses_ult = diario.loc[diario["anio"] == ultimo, "mes"].unique()
+    mismo_periodo = resumen(laborables[laborables["mes"].isin(meses_ult)], "anio")
+    mismo_periodo["indice_vs_base"] = (
+        mismo_periodo["media"] / mismo_periodo.loc[ANIO_BASE, "media"] * 100).round(1)
+
+    # (c) Mes a mes contra el mismo mes del año base (100 = igual que el año base)
+    mensual = laborables.groupby(["mes", "anio"])["total"].mean().unstack("anio")
+    mensual_idx = mensual.div(mensual[ANIO_BASE], axis=0).mul(100).round(1)
+    mensual_idx.index = mensual_idx.index.map(MESES_ES)
+
+    # (d) Por línea
+    lin = (horario.groupby(["fecha", "linea"], as_index=False)["total"].sum()
+           .merge(diario[["fecha", "anio", "tipo_dia"]], on="fecha"))
+    lin = lin[lin["tipo_dia"] == "laborable"]
+    por_linea = lin.groupby(["linea", "anio"])["total"].mean().unstack("anio")
+    por_linea_idx = por_linea.div(por_linea[ANIO_BASE], axis=0).mul(100).round(1)
+
+    # ---- 3. Pregunta 2: días y horarios ---------------------------------------
+    # (a) Por día de la semana y etapa
+    por_dia = resumen(diario, ["etapa", "dia_semana"])
+    por_dia["indice_vs_laborable_pct"] = (
+        por_dia["media"] / por_dia.groupby("etapa", observed=True)["media"].transform("mean") * 100).round(1)
+
+    # (b) Por hora: primero total por (fecha, hora), luego estadísticos por grupo
+    hora_dia = (horario.groupby(["fecha", "hora"], as_index=False)["total"].sum()
+                .merge(diario[["fecha", "etapa", "anio", "tipo_dia"]], on="fecha"))
+    por_hora = resumen(hora_dia, ["etapa", "tipo_dia", "hora"])
+    por_hora["pct_del_dia"] = (
+        por_hora["media"] / por_hora.groupby(["etapa", "tipo_dia"], observed=True)["media"].transform("sum") * 100
+    ).round(1)
+
+    hora_pico = (hora_dia[hora_dia["tipo_dia"] == "laborable"]
+                 .groupby(["anio", "hora"])["total"].mean().unstack("hora").idxmax(axis=1)
+                 .rename("hora_pico_laborable"))
+
+    # (c) Por franja horaria
+    hora_dia["franja"] = franja_horaria(hora_dia["hora"])
+    franja = hora_dia.groupby(["fecha", "etapa", "tipo_dia", "franja"], observed=True, as_index=False)["total"].sum()
+    por_franja = resumen(franja, ["etapa", "tipo_dia", "franja"])
+    por_franja["pct_del_dia"] = (
+        por_franja["media"] / por_franja.groupby(["etapa", "tipo_dia"], observed=True)["media"].transform("sum") * 100
+    ).round(1)
+
+    # ---- 4. Salida -----------------------------------------------------------
+    tablas = {
+        "p1_anual_laborables": anual,
+        "p1_mismo_periodo": mismo_periodo,
+        "p1_mensual_indice": mensual_idx,
+        "p1_por_linea_indice": por_linea_idx,
+        "p2_por_dia_semana": por_dia,
+        "p2_por_hora": por_hora,
+        "p2_hora_pico_por_anio": hora_pico.to_frame(),
+        "p2_por_franja": por_franja,
+    }
+    pd.set_option("display.width", 200, "display.max_columns", 20, "display.max_rows", 200)
+    for nombre, tabla in tablas.items():
+        print(f"\n===== {nombre} =====")
+        print(tabla)
+        tabla.to_csv(OUT_DIR / f"{nombre}.csv")
+
+
+if __name__ == "__main__":
+    main()
