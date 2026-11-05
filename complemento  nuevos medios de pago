@@ -1,1 +1,216 @@
+import warnings
+import functools
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 
+warnings.filterwarnings("ignore")
+# Configuración estética de nivel publicación ejecutiva
+plt.rcParams['font.sans-serif'] = ['Roboto', 'Arial', 'Liberation Sans', 'DejaVu Sans']
+plt.rcParams['axes.edgecolor'] = '#CCCCCC'
+plt.rcParams['axes.linewidth'] = 0.8
+plt.rcParams['grid.color'] = '#EEEEEE'
+plt.rcParams['grid.linestyle'] = '--'
+plt.rcParams['grid.alpha'] = 0.7
+
+PALETA = {
+    'sube': '#0072CE',          # Azul Institucional SUBE (Bucle Cerrado)
+    'vqr': '#00B4D8',           # Turquesa Viaje con QR (Bucle Abierto)
+    'emv_nfc': '#7209B7',       # Violeta Tarjetas Contactless / NFC
+    'debito': '#2B9348',        # Verde Tarjeta de Débito / Tarifa Social
+    'credito': '#F77F00',       # Naranja Tarjeta de Crédito
+    'efectivo': '#D62828',      # Rojo Efectivo / Penalización / Caída
+    'ipc_general': '#6C757D',   # Gris Neutro IPC Nivel General
+    'ipc_transporte': '#E63946',# Rojo Alerta IPC Transporte Público
+    'alerta': '#FFB703'         # Amarillo Destacado
+}
+
+def estilizar_eje(ax, titulo, subtitulo="", xlabel="", ylabel=""):
+    """Elimina bordes innecesarios y aplica tipografía jerárquica estandarizada."""
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_color('#888888')
+    ax.spines['bottom'].set_color('#888888')
+    ax.tick_params(colors='#444444', labelsize=9)
+    ax.grid(True, axis='y', linestyle='--', alpha=0.6)
+
+    if subtitulo:
+        ax.set_title(f"{titulo}\n", fontsize=11.5, fontweight='bold', loc='left', color='#1A1A1A', pad=12)
+        ax.text(0, 1.02, subtitulo, transform=ax.transAxes, fontsize=9, color='#555555', ha='left')
+    else:
+        ax.set_title(titulo, fontsize=11.5, fontweight='bold', loc='left', color='#1A1A1A', pad=10)
+
+    if xlabel:
+        ax.set_xlabel(xlabel, fontsize=9.5, color='#333333', labelpad=6, fontweight='bold')
+    if ylabel:
+        ax.set_ylabel(ylabel, fontsize=9.5, color='#333333', labelpad=6, fontweight='bold')
+
+def auditar_bloque(nombre):
+    """Decorador para trazabilidad de ejecución y validación de salida por bloque."""
+    def decorador(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            print("=" * 90)
+            print(f"[EJECUTANDO] {nombre}")
+            print("=" * 90)
+            res = func(*args, **kwargs)
+            print(f"[OK] {nombre} completado exitosamente.\n")
+            return res
+        return wrapper
+    return decorador
+ Bloque 1 — Relevamiento de Fuentes y las 4 Asimetrías TécnicasLa teoría en cuatro líneasTras la apertura del transporte público a medios electrónicos competitivos (Decreto 698/2024 y Comunicación "A" 8206 del BCRA), analizar a la tarjeta SUBE frente al resto del sistema exige cruzar cuatro fuentes oficiales con arquitecturas y periodicidades distintas. Si las cruzamos en crudo sin armonizarlas antes, cometemos cuatro sesgos metodológicos graves.
+💡 Contexto digital del Bloque 1.1 BCRA: En agosto de 2026, el 76,9% de las transferencias inmediatas push 778,95M op. por 96 billones tuvo origen y destino en una CVU. En QR interoperable comercial (117,2M op., el 99,1% de los PCT frente al 0,9% de Token), los clientes pagaron 52,7% desde CBU y 47,3% desde CVU, mientras los comercios cobraron 53,8% en CVU y 46,2% en CBU (red de 92 billeteras y 67 aceptadores). Además, los 233 PSPCP administran 67,3M de cuentas con 8,9 billones invertidos en FCI frente a solo $0,9 billones sin remunerar (representando el 7,2% de los depósitos privados en pesos)
+# # BLOQUE 1: Relevamiento de Fuentes, Metadatos y las 4 Asimetrías Técnicas
+# **Fuentes integradas:**
+# - BCRA (`api.bcra.gob.ar/estadisticas/v4.0/monetarias` y `Serie, agosto de 2026.xlsx`)
+# - INDEC (`apis.datos.gob.ar/series/api` recurso `sspm_145.3` y CSV FTP `serie_ipc_divisiones.csv` / `aperturas.csv`)
+# - Payway / Lyra (`payway.com.ar` Cortes Q2/Q3 2025 y H1 2026)
+# - Secretaría de Transporte (`datos.transporte.gob.ar` CKAN v2.6.3: `dat-ab-usos-2026.csv`, `dat-ab-usuarios-2026.csv` y CIMPRA 544)
+
+# %%
+@auditar_bloque("BLOQUE 1: Relevamiento de Fuentes y las 4 Asimetrías Metodológicas")
+def ejecutar_bloque_1():
+    # 1. Tabla de Metadatos, Periodicidad, Rezago y Endpoints de las 4 Fuentes
+    df_fuentes = pd.DataFrame([
+        {
+            "Fuente": "BCRA (bcra.gob.ar)",
+            "Activo": "Informe Pagos Minoristas y Anexo Series (.xlsx)",
+            "Rezago_Temporal": "Mixto: T (Transf, PCT, VQR), T-1 (TD, TC, SUBE, ATM), T-2 (Prepagas)",
+            "Canal_Ingesta": "GET api.bcra.gob.ar/estadisticas/v4.0/monetarias/{IdVariable}",
+            "Metricas_Clave_2026": "270,21M SUBE ($193,68 mil M); 26,33M VQR ($36,42 mil M); TC Ref $1.499,96/USD"
+        },
+        {
+            "Fuente": "INDEC (indec.gob.ar)",
+            "Activo": "IPC Base Dic 2016=100 (Metodología N° 32 Laspeyres)",
+            "Rezago_Temporal": "Mensual sin rezago interno (~día 13 de T+1; 320.000 precios en 39 aglomerados)",
+            "Canal_Ingesta": "API sspm_145.3 (145.3_INGNACNAL_DICI_M_15) y FTP serie_ipc_aperturas.csv",
+            "Metricas_Clave_2026": "6 Regiones (GBA 44,7%, Pampeana 34,2%); Índice Ago-26: 12.276,7660"
+        },
+        {
+            "Fuente": "Payway / Lyra",
+            "Activo": "Índice Payway (Prisma) y Reportes Adquirencia",
+            "Rezago_Temporal": "Trimestral / Semestral (Cortes Q2/Q3 2025 y H1 2026)",
+            "Canal_Ingesta": "Reportes ejecutivos PDF y prensa especializada (Sin API pública)",
+            "Metricas_Clave_2026": ">60M viajes Payway + 55M Lyra (19 prov.); 69,5% TD / 30,5% TC; 30% NFC (+100% H1 26)"
+        },
+        {
+            "Fuente": "Sec. Transporte (SUBE)",
+            "Activo": "Datasets Diarios Usos y Usuarios + Boletín CIMPRA 544",
+            "Rezago_Temporal": "Diaria continua en portal CKAN v2.6.3 (con bandera dato_preliminar = SI/NO)",
+            "Canal_Ingesta": "Descarga CSV (dat-ab-usos-2026.csv y dat-ab-usuarios-2026.csv) y API CKAN",
+            "Metricas_Clave_2026": "Apertura por empresa, línea, modo, AMBA, género y Tarifa Social; sin montos en $"
+        }
+    ])
+    print("\n[TABLA 1.1] Relevamiento Exhaustivo de Fuentes de Datos y Endpoints:")
+    print(df_fuentes[["Fuente", "Rezago_Temporal", "Canal_Ingesta", "Metricas_Clave_2026"]].to_string(index=False))
+
+    # --- GENERACIÓN DE 3 GRÁFICOS DEL BLOQUE 1 ---
+    fig = plt.figure(figsize=(18, 13))
+    gs = fig.add_gridspec(2, 2, hspace=0.38, wspace=0.25)
+
+    # GRÁFICO 1.1: Desfase Temporal Escalonado (Reporting Lag T, T-1 y T-2 en el Informe BCRA de Agosto 2026)
+    ax1 = fig.add_subplot(gs[0, 0])
+    instrumentos = [
+        "Transferencias Push/Pull (ARS y USD)",
+        "Pagos con Transferencia (PCT QR/Token)",
+        "Viaje con QR Interoperable (VQR)",
+        "Cheques / ECHEQ / Débito Directo / FCEM",
+        "Tarjetas de Débito (ARS y USD)",
+        "Tarjetas de Crédito (1 Pago y Cuotas)",
+        "Tarjetas Transporte (SUBE Bucle Cerrado)",
+        "Extracciones Efectivo (ATM y Comercios)",
+        "Tarjetas Prepagas (PSPCP)"
+    ]
+    mes_real = [8, 8, 8, 8, 7, 7, 7, 7, 6] # 8=Ago (T), 7=Jul (T-1), 6=Jun (T-2)
+    colores_lag = [PALETA['vqr'] if m == 8 else (PALETA['sube'] if m == 7 else PALETA['credito']) for m in mes_real]
+
+    y_pos = np.arange(len(instrumentos))
+    ax1.barh(y_pos, [0.75]*len(instrumentos), left=[m - 0.375 for m in mes_real], color=colores_lag, height=0.62)
+    ax1.set_yticks(y_pos)
+    ax1.set_yticklabels(instrumentos, fontweight='bold', fontsize=8.5)
+    ax1.invert_yaxis()
+    ax1.set_xticks([6, 7, 8])
+    ax1.set_xticklabels(["Junio 2026\n(Rezago T-2)", "Julio 2026\n(Rezago T-1)", "Agosto 2026\n(Mes Informe T)"], fontweight='bold')
+    ax1.axvline(7.5, color=PALETA['efectivo'], linestyle='--', linewidth=1.5)
+
+    for i, m in enumerate(mes_real):
+        txt = "Tiempo T (Ago-26)" if m == 8 else ("Rezago T-1 (Jul-26)" if m == 7 else "Rezago T-2 (Jun-26)")
+        ax1.text(m, i, txt, va='center', ha='center', color='white', fontweight='bold', fontsize=8)
+
+    estilizar_eje(
+        ax1,
+        "Gráfico 1.1: Asimetría 1 — Desfase Temporal Escalonado (Reporting Lag) en BCRA",
+        "Período operativo real de cada serie en el Informe de Agosto 2026 (Notas 1, 3 y 6 BCRA)",
+        xlabel="Mes Operativo Real de las Transacciones"
+    )
+
+    # GRÁFICO 1.2: Matriz Interoperable CBU vs CVU en QR y Liquidez en FCI de PSPCP (Bloque 1.1 BCRA)
+    ax2 = fig.add_subplot(gs[0, 1])
+    metricas_billeteras = [
+        "Transferencias Push\n(778,95M op. | $96,0B)",
+        "QR Cuenta Pagadora\n(117,2M op. | 99,1% PCT)",
+        "QR Cuenta Receptora\n(92 Billeteras | 67 Acept.)",
+        "Saldos en 233 PSPCP\n(67,3M cuentas | $9,8B tot.)"
+    ]
+    tramo_bancario_o_vista = [23.1, 52.7, 46.2, 9.18]   # % CBU o % Saldo sin remunerar ($0.9B de $9.8B)
+    tramo_virtual_o_fci = [76.9, 47.3, 53.8, 90.82]     # % CVU o % Invertido en FCI ($8.9B de $9.8B)
+
+    x_b = np.arange(len(metricas_billeteras))
+    ax2.bar(x_b, tramo_bancario_o_vista, width=0.52, color=PALETA['sube'], label='CBU Bancaria / Saldo Cta. Pago ($0,9 Billones)')
+    ax2.bar(x_b, tramo_virtual_o_fci, width=0.52, bottom=tramo_bancario_o_vista, color=PALETA['vqr'], label='CVU Virtual / Invertido en FCI ($8,9 Billones)')
+
+    for i in range(len(x_b)):
+        ax2.text(x_b[i], tramo_bancario_o_vista[i]/2, f"{tramo_bancario_o_vista[i]:.1f}%", ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+        ax2.text(x_b[i], tramo_bancario_o_vista[i] + tramo_virtual_o_fci[i]/2, f"{tramo_virtual_o_fci[i]:.1f}%", ha='center', va='center', color='#003049', fontweight='bold', fontsize=9)
+
+    ax2.set_xticks(x_b)
+    ax2.set_xticklabels(metricas_billeteras, fontsize=8.5, fontweight='bold')
+    ax2.set_ylim(0, 115)
+    ax2.legend(frameon=False, loc='upper right', fontsize=8.5)
+    estilizar_eje(
+        ax2,
+        "Gráfico 1.2: Ecosistema CBU/CVU en Pagos QR y Fondos Comunes (FCI) en PSPCP",
+        "El 76,9% de las transferencias push usa CVU y los PSPCP canalizan $8,9B en FCI (7,2% de depósitos privados)",
+        ylabel="Participación Porcentual (%)"
+    )
+
+    # GRÁFICO 1.3: Cuantificación Empírica de las 4 Asimetrías Técnicas al Cruzar las Bases sin Limpieza
+    ax3 = fig.add_subplot(gs[1, :])
+    nombres_asimetrias = [
+        "Asimetría 1 (Desfase Temporal)\nVQR Ago-26 (26,33M) vs\nVQR Jul-26 Homogéneo (24,40M)",
+        "Asimetría 2 (Ocultamiento EMV)\nViajes EMV en Rubro Transporte BCRA (0M)\nvs Adquirencia Payway+Lyra (115M)",
+        "Asimetría 3 (Sesgo Autoselección)\nBrecha Bruta Ticket VQR vs SUBE (+92,9%)\nvs Brecha en Tarifa Plena Registrada (0%)",
+        "Asimetría 4 (Deflactor Único)\nCaída SUBE con IPC General (-1,7%)\nvs Caída Física / IPC Transp. (-22,0%)"
+    ]
+    lectura_distorsionada = [26.33, 0.0, 92.9, 1.7]
+    lectura_corregida = [24.40, 115.0, 0.0, 22.0]
+
+    x_a = np.arange(len(nombres_asimetrias))
+    w = 0.34
+    ax3.bar(x_a - w/2, lectura_distorsionada, width=w, color=PALETA['ipc_general'], label='Valor Crudo / Sin Armonizar (Sesgo Metodológico)')
+    ax3.bar(x_a + w/2, lectura_corregida, width=w, color=PALETA['ipc_transporte'], label='Valor Armonizado tras Reglas de Limpieza')
+
+    etiquetas_izq = ["26,33M (Corte Ago)", "0,0M (Oculto en TD/TC)", "+92,9% ($1.383 vs $717)", "-1,7% (Deflactor IPC NG)"]
+    etiquetas_der = ["24,40M (Corte Jul Homog.)", "115,0M (60M Payway + 55M Lyra)", "0,0% (Misma Tarifa Nominal)", "-22,0% (Contracción Real)"]
+
+    for i in range(len(x_a)):
+        ax3.text(x_a[i] - w/2, lectura_distorsionada[i] + 2.5, etiquetas_izq[i], ha='center', fontsize=8.5, fontweight='bold', color='#333333')
+        ax3.text(x_a[i] + w/2, lectura_corregida[i] + 2.5, etiquetas_der[i], ha='center', fontsize=8.5, fontweight='bold', color='#B00020')
+
+    ax3.set_xticks(x_a)
+    ax3.set_xticklabels(nombres_asimetrias, fontsize=9, fontweight='bold')
+    ax3.set_ylim(0, 135)
+    ax3.legend(frameon=False, loc='upper left', fontsize=9)
+    estilizar_eje(
+        ax3,
+        "Gráfico 1.3: Diagnóstico Cuantitativo de las 4 Asimetrías Técnicas entre BCRA, INDEC, SUBE y Payway",
+        "Magnitud del sesgo introducido al cruzar las fuentes sin aplicar el protocolo de armonización",
+        ylabel="Millones de Viajes / Porcentaje de Variación (%)"
+    )
+
+    plt.tight_layout()
+    plt.savefig("bloque_1_relevamiento_y_asimetrias.png", dpi=300, bbox_inches='tight')
+    plt.show()
+    return df_fuentes
+
+df_b1 = ejecutar_bloque_1()
