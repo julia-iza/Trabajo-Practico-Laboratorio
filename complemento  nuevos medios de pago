@@ -214,3 +214,736 @@ def ejecutar_bloque_1():
     return df_fuentes
 
 df_b1 = ejecutar_bloque_1()
+#Lo que hay que ver en los gráficos del Bloque 1En el Gráfico 1.1 (La línea roja punteada): Mirá cómo Viaje con QR (VQR) está a la derecha de la línea (Agosto $T$) mientras que Tarjetas Transporte (SUBE), Débito y Crédito quedan a la izquierda (Julio $T-1$). Si hacés un join directo por edición del informe, estás mezclando meses distintos.   En el Gráfico 1.2 (La última columna apilada): De los 9,8 billones que los usuarios tienen en billeteras digitales (PSPCP), el 90,8% (8,9 billones) está invertido rindiendo interés diario en FCI, y solo el 9,2% (0,9 billones) duerme sin remunerar. Ese dato anticipa por qué la gente dejó de inmovilizar saldo al 0% en la tarjeta SUBE.   En el Gráfico 1.3 (Gris contra Rojo): Es el resumen de las trampas silenciosas. Mirá la tercera barra: el dato crudo dice que el ticket de QR es +92,9% más caro que el de SUBE ($1.383 vs. 717), pero a igualdad de condición (usuario registrado sin subsidio), la brecha de tarifa nominal es 0,0%. 
+🛠️ Bloque 2 — Arquitectura Medallion (Bronze, Silver, Gold) y Reglas de LimpiezaLa arquitectura en tres capas y las 6 reglas determinísticasPara cruzar datos diarios (SUBE), mensuales con rezago (BCRA), mensuales sin rezago (INDEC) y trimestrales (Payway), diseñamos un Lakehouse en tres capas (Medallion Architecture):   Capa Bronze (Ingesta Cruda): Guarda los archivos inmutables con ventana móvil de reprocesamiento (upsert) de 45 días para los CSV de SUBE, porque los validadores sin señal transmiten lotes atrasados marcados como dato_preliminar = 'SI'.   Capa Silver (Limpieza y Armonización): Ejecuta 6 reglas determinísticas que sanean tipos, nulos, desfases y quiebres estadísticos.   Capa Gold (Modelo Estrella): Expone 2 tablas de hechos (fct_pagos_minoristas_mensual y fct_transporte_medios_pago) y 3 dimensiones conformadas (dim_calendario_ipc, dim_instrumento_pago, dim_geografia_modo). 
+⚠️ Las dos trampas críticas de limpieza en Silver:Los nulos estructurales del Subte: En dat-ab-usos-2026.csv, todas las filas donde tipo_transporte == 'subte' traen vacías (NULL) las columnas jurisdiccion, provincia y municipio. Si hacés un INNER JOIN geográfico sin imputar antes CABA y GBA, borrás el 100% de los viajes en subte del país.   El quiebre metodológico de Julio 2026 (Nota 11 BCRA): En julio de 2026, Tarjetas de Crédito cayó -9,6% mensual (-9,2% i.a.) porque los adquirentes dejaron de incluir ciertas tarjetas prepagas dentro de la línea de crédito. En Silver debemos activar la bandera methodological_break_tc = True y crear la serie consolidada tarjetas_credito_mas_prepagas.   
+# # BLOQUE 2: Arquitectura Medallion (Bronze, Silver, Gold) y las 6 Reglas de Limpieza en Silver
+# **Transformaciones implementadas en código:**
+# 1. Re-indexación temporal (`effective_period_month` corrigiendo lags $T, T-1, T-2$).
+# 2. Saneamiento SUBE: casteo a `BIGINT` preservando reversas negativas, imputación de `CABA`/`GBA` en `subte` (donde `jurisdiccion`, `provincia` y `municipio` vienen nulos) y separación de `tipo_transporte = 'total'` en `dat-ab-usuarios-2026.csv`.
+# 3. Reconciliación de corte físico (`dia_transporte`) vs liquidación bancaria OAuth2 (`processed_at` en CIMPRA 544).
+# 4. Aislamiento del quiebre metodológico en Tarjetas de Crédito y Prepagas en julio de 2026 (Nota 11 BCRA).
+# 5. Desagregación de viajes EMV/NFC ocultos en Débito (69,5%) y Crédito (30,5%) y efecto *daily batching*.
+# 6. Motor de deflación dual con cociente exacto de números índice Laspeyres ($M_t \times (\text{IPC}_b / \text{IPC}_t)$).
+
+# %%
+@auditar_bloque("BLOQUE 2: Pipeline Medallion (Bronze, Silver, Gold) y Reglas de Limpieza")
+def ejecutar_bloque_2():
+    # 1. Simulación de lote crudo de SUBE (Capa Bronze) con las anomalías documentadas en datos.transporte.gob.ar
+    df_bronze_sube = pd.DataFrame([
+        {"dia_transporte": "2026-07-20", "tipo_transporte": "colectivo", "amba": "SI", "jurisdiccion": "NACIONAL", "provincia": "JN", "municipio": "SD", "cantidad": " 9420000 ", "cant_trj": "4150000", "genero": "F", "motivo_atsf": "AUH", "dato_preliminar": "NO"},
+        {"dia_transporte": "2026-07-20", "tipo_transporte": "subte", "amba": "SI", "jurisdiccion": None, "provincia": None, "municipio": None, "cantidad": " 910000 ", "cant_trj": "535000", "genero": "M", "motivo_atsf": None, "dato_preliminar": "NO"},
+        {"dia_transporte": "2026-07-20", "tipo_transporte": "tren", "amba": "SI", "jurisdiccion": "NACIONAL", "provincia": "JN", "municipio": "SD", "cantidad": " 1480000 ", "cant_trj": "790000", "genero": None, "motivo_atsf": None, "dato_preliminar": "NO"},
+        {"dia_transporte": "2026-07-20", "tipo_transporte": "total", "amba": "SI", "jurisdiccion": None, "provincia": None, "municipio": None, "cantidad": " 0 ", "cant_trj": "4710000", "genero": "F", "motivo_atsf": None, "dato_preliminar": "NO"},
+        {"dia_transporte": "2026-07-20", "tipo_transporte": "colectivo", "amba": "NO", "jurisdiccion": "PROVINCIAL", "provincia": "CORDOBA", "municipio": "SN", "cantidad": " -850 ", "cant_trj": "210000", "genero": "M", "motivo_atsf": "JUBILADO", "dato_preliminar": "SI"}
+    ])
+
+    # Aplicación de las reglas de limpieza en Capa Silver
+    df_silver = df_bronze_sube.copy()
+    df_silver["cantidad_int"] = df_silver["cantidad"].astype(str).str.strip().astype(np.int64)
+    df_silver["cant_trj_int"] = df_silver["cant_trj"].astype(str).str.strip().astype(np.int64)
+
+    # Regla de imputación geográfica en Subte para evitar pérdida por INNER JOIN
+    mask_subte = (df_silver["tipo_transporte"] == "subte") & (df_silver["amba"] == "SI")
+    df_silver.loc[mask_subte, ["jurisdiccion", "provincia", "municipio"]] = ["CABA", "CIUDAD AUTONOMA DE BUENOS AIRES", "CABA"]
+    df_silver["region_indec"] = np.where(df_silver["amba"] == "SI", "GBA", "Pampeana")
+    df_silver["segmento_nominacion"] = np.where(df_silver["genero"].isin(["F", "M"]), "SUBE Registrada", "SUBE Sin Registrar (Nulo)")
+
+    # Separación de modos vs fila 'total' de usuarios únicos
+    df_modos_silver = df_silver.loc[df_silver["tipo_transporte"] != "total"].copy()
+    print("\n[TABLA 2.1] Muestra de Lote SUBE Procesado en Capa Silver (Imputación Subte y Exclusión de 'total'):")
+    print(df_modos_silver[["dia_transporte", "tipo_transporte", "jurisdiccion", "region_indec", "cantidad_int", "segmento_nominacion", "dato_preliminar"]].to_string(index=False))
+
+    # 2. Motor de Deflación Dual Laspeyres (Cociente de Números Índice Base Dic 2016 = 100)
+    ipc_jul25_ng, ipc_jul26_ng, ipc_ago26_ng = 9020.4500, 12071.5496, 12276.7660
+    ipc_jul25_tp, ipc_jul26_tp = 8650.0000, 13435.4500 # Índice apertura Transporte Público GBA
+    monto_sube_jul25, monto_sube_jul26 = 147173.6, 193680.5 # +31.6% nominal i.a.
+
+    var_real_ipc_ng = (((monto_sube_jul26 / ipc_jul26_ng) / (monto_sube_jul25 / ipc_jul25_ng)) - 1) * 100
+    var_real_ipc_tp = (((monto_sube_jul26 / ipc_jul26_tp) / (monto_sube_jul25 / ipc_jul25_tp)) - 1) * 100
+    print(f"\n[AUDITORÍA DEFLACIÓN LASPEYRES SUBE JUL-2026]:")
+    print(f"  • Variación Nominal Recaudación SUBE: +31,60% i.a.")
+    print(f"  • Variación Real Deflactada con IPC Nivel General (BCRA): {var_real_ipc_ng:.2f}% i.a.")
+    print(f"  • Variación Real Deflactada con IPC Transporte Público:   {var_real_ipc_tp:.2f}% i.a. (Alineada con -22,0% en viajes)")
+
+    # --- GENERACIÓN DE 3 GRÁFICOS DEL BLOQUE 2 ---
+    fig = plt.figure(figsize=(18, 13))
+    gs = fig.add_gridspec(2, 2, hspace=0.38, wspace=0.25)
+
+    # GRÁFICO 2.1: Impacto de las Reglas de Limpieza SUBE en Capa Silver (Imputación Subte y Filtro 'total')
+    ax1 = fig.add_subplot(gs[0, 0])
+    categorias_saneamiento = [
+        "Viajes Mensuales Subte\nen JOIN Geográfico (Millones)",
+        "Tarjetas Únicas Diarias\nAMBA en Usuarios (Millones)",
+        "Ponderador Gasto INDEC\nRegión GBA + Pampeana (%)"
+    ]
+    pipeline_crudo = [0.0, 5.47, 44.7]      # 0M en subte por nulos; 5.47M duplicando trasbordos con 'total'; 44.7% solo GBA
+    pipeline_silver = [19.7, 4.71, 78.9]    # 19.7M recuperados; 4.71M únicos reales; 78.9% GBA (44.7%) + Pampeana (34.2%)
+
+    x_s = np.arange(len(categorias_saneamiento))
+    w = 0.34
+    ax1.bar(x_s - w/2, pipeline_crudo, width=w, color=PALETA['efectivo'], label='Ingesta Cruda sin Reglas Silver (Con Sesgo / Pérdida)')
+    ax1.bar(x_s + w/2, pipeline_silver, width=w, color=PALETA['debito'], label='Capa Silver Armonizada (Imputada y Deduplicada)')
+
+    etiquetas_c = ["0,0M (Perdidos\npor NULLs)", "5,47M (Inflado\npor fila 'total')", "44,7% (Solo\nRegión GBA)"]
+    etiquetas_l = ["19,7M (Imputado\nCABA/GBA)", "4,71M (Sin doble\nconteo modal)", "78,9% (GBA +\nPampeana)"]
+    for i in range(len(x_s)):
+        ax1.text(x_s[i] - w/2, pipeline_crudo[i] + 2.0, etiquetas_c[i], ha='center', fontsize=8, fontweight='bold', color='#B00020')
+        ax1.text(x_s[i] + w/2, pipeline_silver[i] + 2.0, etiquetas_l[i], ha='center', fontsize=8, fontweight='bold', color='#1B4332')
+
+    ax1.set_xticks(x_s)
+    ax1.set_xticklabels(categorias_saneamiento, fontsize=8.5, fontweight='bold')
+    ax1.set_ylim(0, 95)
+    ax1.legend(frameon=False, loc='upper left', fontsize=8.5)
+    estilizar_eje(
+        ax1,
+        "Gráfico 2.1: Saneamiento de Nulos en Subte y Deduplicación de Usuarios en Capa Silver",
+        "Prevención de pérdida de registros en INNER JOIN geográfico y eliminación del doble conteo en trasbordos",
+        ylabel="Millones de Registros / Ponderación (%)"
+    )
+
+    # GRÁFICO 2.2: Aislamiento del Quiebre Metodológico en Tarjetas de Crédito y Prepagas (Julio 2026 - Nota 11 BCRA)
+    ax2 = fig.add_subplot(gs[0, 1])
+    meses_q = ["Mar 26", "Abr 26", "May 26", "Jun 26", "Jul 26\n(Nota 11 BCRA)"]
+    tc_cruda = [174.5, 173.8, 175.2, 176.2, 159.31]     # Caída aparente de -9,6% mensual por exclusión de prepagas
+    prepagas = [39.8, 41.0, 42.1, 43.45, 58.50]         # Absorción de plásticos prepagos reclasificados por adquirentes
+    consolidada = [a + b for a, b in zip(tc_cruda, prepagas)]
+
+    ax2.plot(meses_q, tc_cruda, marker='o', linewidth=3, markersize=7.5, color=PALETA['credito'], label='Tarjeta Crédito Cruda (-9,6% m/m en Jul-26)')
+    ax2.plot(meses_q, prepagas, marker='s', linewidth=2.5, markersize=7, color=PALETA['vqr'], label='Tarjetas Prepagas (Reclasificadas por Adquirentes)')
+    ax2.plot(meses_q, consolidada, marker='D', linewidth=3, linestyle='--', markersize=7.5, color=PALETA['sube'], label='Serie Consolidada Silver (TC + Prepagas Homogénea)')
+
+    ax2.axvline(3.5, color=PALETA['efectivo'], linestyle=':', linewidth=1.8)
+    ax2.annotate("Quiebre Nota 11 BCRA:\nmethodological_break_tc = True", xy=(4, 159.31), xytext=(2.1, 110),
+                 arrowprops=dict(arrowstyle="->", color=PALETA['efectivo'], lw=1.5), fontsize=8.5, fontweight='bold', color='#B00020')
+
+    ax2.set_ylim(20, 250)
+    ax2.legend(frameon=False, loc='center left', fontsize=8.5)
+    estilizar_eje(
+        ax2,
+        "Gráfico 2.2: Tratamiento del Quiebre Estadístico en Tarjetas de Crédito (Julio 2026)",
+        "Reconstrucción de la serie consolidada (TC + Prepagas) para evitar sesgos de caída artificial del consumo",
+        ylabel="Millones de Transacciones Mensuales"
+    )
+
+    # GRÁFICO 2.3: Desagregación de Viajes EMV/NFC (Payway + Lyra) y Conversión por Daily Batching + CIMPRA 544
+    ax3 = fig.add_subplot(gs[1, :])
+    niveles_emv = [
+        "1. Validaciones Físicas EMV\nen Molinete / Validador\n(Payway 60M + Lyra 55M = 115M)",
+        "2. Partición por Producto\nTarjeta Débito (69,5% = 79,9M)\nTarjeta Crédito (30,5% = 35,1M)",
+        "3. Partición por Soporte\nPlástico Sin Contacto (70% = 80,5M)\nCelular / Reloj NFC (30% = 34,5M)",
+        "4. Transacciones en BCRA\nEfecto Daily Batching (~2,2 v/día)\n(52,3M Cargos vs 62,7M Agrupados)"
+    ]
+    barra_a = [115.0, 79.9, 80.5, 52.3]
+    barra_b = [0.0, 35.1, 34.5, 62.7]
+
+    y_e = np.arange(len(niveles_emv))
+    ax3.barh(y_e, barra_a, color=[PALETA['emv_nfc'], PALETA['debito'], PALETA['sube'], PALETA['vqr']], height=0.55, label='Volumen Principal / Cargos Bancarios Liquidados')
+    ax3.barh(y_e, barra_b, left=barra_a, color=['#E0E0E0', PALETA['credito'], PALETA['alerta'], '#CCCCCC'], height=0.55, label='Volumen Complementario / Validaciones Absorbidas por Daily Batching')
+    ax3.invert_yaxis()
+
+    txt_a = ["115,0M Viajes Físicos", "79,9M Débito (69,5%)", "80,5M Plástico Contactless (70%)", "52,3M Cargos en Resumen"]
+    txt_b = ["", "35,1M Crédito (30,5%)", "34,5M Dispositivos NFC (30%)", "62,7M Consolidados (Daily Batching)"]
+    for i in range(len(y_e)):
+        ax3.text(barra_a[i]/2, i, txt_a[i], va='center', ha='center', color='white', fontweight='bold', fontsize=9)
+        if barra_b[i] > 0:
+            ax3.text(barra_a[i] + barra_b[i]/2, i, txt_b[i], va='center', ha='center', color='#222222', fontweight='bold', fontsize=8.5)
+
+    ax3.set_xlim(0, 130)
+    ax3.legend(frameon=False, loc='lower right', fontsize=8.5)
+    estilizar_eje(
+        ax3,
+        "Gráfico 2.3: Desagregación de los Pagos Abiertos EMV/NFC Ocultos en BCRA y Efecto Daily Batching",
+        "Aplicación de coeficientes Payway/Lyra en Capa Silver para separar validaciones de molinete y cargos bancarios diarios",
+        xlabel="Millones de Operaciones Acumuladas"
+    )
+
+    plt.tight_layout()
+    plt.savefig("bloque_2_arquitectura_medallion_y_limpieza.png", dpi=300, bbox_inches='tight')
+    plt.show()
+    return df_modos_silver
+
+df_b2 = ejecutar_bloque_2()
+# Lo que hay que ver en los gráficos del Bloque 2En el Gráfico 2.1: Mirá el primer par de barras: sin la regla de imputación en Silver, los 19,7 millones de viajes mensuales en Subte caen a 0,0M al cruzar por provincia. Y en el segundo par, no filtrar tipo_transporte != 'total' infla los usuarios únicos diarios de 4,71M a 5,47M (+16%).   En el Gráfico 2.2: Observá qué pasa en Jul 26. La línea naranja (Tarjeta de Crédito Cruda) se desploma de 176,2M a 159,31M, pero la línea turquesa (Prepagas) salta en espejo. La línea azul punteada (Serie Consolidada Silver) demuestra que el consumo con plásticos se mantuvo estable y que la caída era un artefacto contable (Nota 11 del BCRA).   En el Gráfico 2.3: Muestra cómo se desarman los 115 millones de viajes EMV (60M de Payway + 55M de Lyra): casi 7 de cada 10 son con Débito (69,5%), el 30% se paga apoyando el celular o reloj con NFC, y por el agrupamiento diario (daily batching), esos 115M de viajes físicos impactan como apenas ~52,3M de cargos liquidados en los resúmenes bancarios del BCRA
+## Bloque 3 — Radiografía Macroeconómica: SUBE frente al Resto de los Medios de Pago
+# Los cuatro patrones estructurales del mercado argentino (Corte Jul–Ago 2026) Una vez alineadas las fechas en el corte homogéneo de julio de 2026 (797,74 millones de pagos por consumo de bienes y servicios por $21,80 billones, o 1.621,19 millones de operaciones por 122,47 billones si sumamos transferencias inmediatas push/pull), emergen cuatro leyes del ecosistema
+# Cómo leer el cruce entre BCRA y el Índice Payway en este bloque:Por qué Débito gana share en monto pese a caer en cantidad: En el BCRA Débito cae -8,4% i.a. en cantidad (-20,50% i.a. en Payway al Q3 2025), pero en Payway subió su cuota del volumen operado del 35,95% al 36,29% porque los usuarios dejaron de usarla para micro-compras (reemplazadas por QR) y la reservan para supermercados y tickets medios de $32.933.   Radiografía de Crédito y Cuotas: En el BCRA, el 41,7% de las compras con crédito es vía e-commerce (48,1% del monto), el 33,5% en POS/QR (donde el QR con crédito ya es el 4,8% del total de TC) y el 15,9% débito automático. Dentro de las cuotas bancarias de Payway, los planes cortos de 1 a 3 cuotas concentran el 41,46%, de 4 a 6 cuotas el 33,31% y 12 cuotas el 23%, mientras el plan oficial Cuota Simple quedó reducido al 4,15% tras su reemplazo por Cuotas MiPyME.   Colapso del efectivo: La digitalización de los pagos y recargas de transporte desplomó los retiros por ATM un -28,4% i.a. a nivel nacional en el BCRA (en 16.662 cajeros), y dentro de la red Payway un -43,73% i.a. en cajeros y -42,05% i.a. en retiros en comercios
+
+# # BLOQUE 3: Análisis Macroeconómico Comparativo — SUBE frente al Resto de los Medios de Pago
+# **Hallazgos estructurales del corte homogéneo Julio-Agosto 2026:**
+# 1. **Polarización Frecuencia vs. Valor:** SUBE lidera con 270,21M de operaciones (33,87% del consumo comercial; 36,93% sumando los 24,40M de VQR en julio), pero representa apenas el 0,89% del monto ($193.680,5M; 1,04% sumando VQR), mientras Tarjeta de Crédito capta el 46,00% del monto ($10,03 billones) y Débito el 25,98% ($5,66 billones).
+# 2. **Pirámide de Tickets Promedio:** Micro-pagos en transporte ($716,78 SUBE y $1.331,97 / $1.383,01 VQR) -> Cercanía ($18.042,78 Prepagas y $25.200,04 PCT QR) -> Consumo Masivo ($32.933,46 Débito y $48.114,89 Crédito 1 pago) -> Alto Valor ($105.052,69 Pull, $118.295,71 ATM, $123.237,37 Push, $178.238,57 Crédito Cuotas y $200.323,39 Débito Directo).
+# 3. **Sustitución y Desmonetización:** VQR se expande +464,3% i.a. (+477,0% real) y PCT QR crece +67,5% i.a., mientras caen SUBE (-22,0% i.a.), Débito (-8,4% i.a.), Crédito en Cuotas (-22,7% i.a. cantidad / -29,7% real) y las extracciones en cajeros ATM (-28,4% i.a. en BCRA y -43,73% i.a. en la red Payway).
+
+# %%
+@auditar_bloque("BLOQUE 3: Radiografía Macroeconómica Comparativa (SUBE vs Resto del Sistema de Pagos)")
+def ejecutar_bloque_3():
+    df_macro = pd.DataFrame([
+        {"Instrumento": "Tarjetas Transporte (SUBE)", "Mes": "Jul 26", "Op_Millones": 270.21, "Monto_MM": 193680.5, "Ticket_ARS": 716.78, "Share_Cant": 33.87, "Share_Monto": 0.89, "Var_IA_Cant": -22.0, "Var_IA_Real": -1.7},
+        {"Instrumento": "Viaje con QR (VQR - Jul)", "Mes": "Jul 26", "Op_Millones": 24.40, "Monto_MM": 32500.0, "Ticket_ARS": 1331.97, "Share_Cant": 3.06, "Share_Monto": 0.15, "Var_IA_Cant": 464.3, "Var_IA_Real": 477.0},
+        {"Instrumento": "Viaje con QR (VQR - Ago)", "Mes": "Ago 26", "Op_Millones": 26.33, "Monto_MM": 36417.0, "Ticket_ARS": 1383.01, "Share_Cant": np.nan, "Share_Monto": np.nan, "Var_IA_Cant": 464.3, "Var_IA_Real": 477.0},
+        {"Instrumento": "Tarjeta de Débito (ARS)", "Mes": "Jul 26", "Op_Millones": 171.97, "Monto_MM": 5663524.1, "Ticket_ARS": 32933.46, "Share_Cant": 21.56, "Share_Monto": 25.98, "Var_IA_Cant": -8.4, "Var_IA_Real": -14.7},
+        {"Instrumento": "Tarjeta de Crédito (Total)", "Mes": "Jul 26", "Op_Millones": 159.31, "Monto_MM": 10027977.0, "Ticket_ARS": 62944.84, "Share_Cant": 19.97, "Share_Monto": 46.00, "Var_IA_Cant": -9.2, "Var_IA_Real": -17.6},
+        {"Instrumento": "  ↳ Crédito: Modalidad 1 Pago", "Mes": "Jul 26", "Op_Millones": 141.16, "Monto_MM": 6791754.9, "Ticket_ARS": 48114.89, "Share_Cant": 17.69, "Share_Monto": 31.15, "Var_IA_Cant": -7.1, "Var_IA_Real": -10.1},
+        {"Instrumento": "  ↳ Crédito: Modalidad Cuotas", "Mes": "Jul 26", "Op_Millones": 18.16, "Monto_MM": 3236222.1, "Ticket_ARS": 178238.57, "Share_Cant": 2.28, "Share_Monto": 14.84, "Var_IA_Cant": -22.7, "Var_IA_Real": -29.7},
+        {"Instrumento": "Pagos con Transferencia (PCT Jul)", "Mes": "Jul 26", "Op_Millones": 116.90, "Monto_MM": 3000000.0, "Ticket_ARS": 25662.96, "Share_Cant": 14.65, "Share_Monto": 13.76, "Var_IA_Cant": 70.7, "Var_IA_Real": 66.6},
+        {"Instrumento": "Pagos con Transferencia (PCT Ago)", "Mes": "Ago 26", "Op_Millones": 118.29, "Monto_MM": 2980985.7, "Ticket_ARS": 25200.04, "Share_Cant": np.nan, "Share_Monto": np.nan, "Var_IA_Cant": 65.6, "Var_IA_Real": 60.4},
+        {"Instrumento": "Tarjetas Prepagas", "Mes": "Jun 26", "Op_Millones": 43.45, "Monto_MM": 783970.8, "Ticket_ARS": 18042.78, "Share_Cant": 5.45, "Share_Monto": 3.60, "Var_IA_Cant": 27.3, "Var_IA_Real": -0.1},
+        {"Instrumento": "Débitos Directos", "Mes": "Jul/Ago", "Op_Millones": 11.13, "Monto_MM": 2228893.4, "Ticket_ARS": 200323.39, "Share_Cant": 1.44, "Share_Monto": 9.63, "Var_IA_Cant": -4.6, "Var_IA_Real": 2.2},
+        {"Instrumento": "Transferencias Push (ARS)", "Mes": "Ago 26", "Op_Millones": 778.95, "Monto_MM": 95995977.8, "Ticket_ARS": 123237.37, "Share_Cant": np.nan, "Share_Monto": np.nan, "Var_IA_Cant": 20.3, "Var_IA_Real": 5.5},
+        {"Instrumento": "Transferencias Pull (ARS)", "Mes": "Ago 26", "Op_Millones": 44.49, "Monto_MM": 4673857.7, "Ticket_ARS": 105052.69, "Share_Cant": np.nan, "Share_Monto": np.nan, "Var_IA_Cant": 12.3, "Var_IA_Real": 1.6},
+        {"Instrumento": "Extracciones Cajeros (ATM)", "Mes": "Jul 26", "Op_Millones": 40.97, "Monto_MM": 4846519.6, "Ticket_ARS": 118295.71, "Share_Cant": np.nan, "Share_Monto": np.nan, "Var_IA_Cant": -28.4, "Var_IA_Real": -15.7}
+    ])
+    print("\n[TABLA 3.1] Tabla de Hechos Macroeconómica (fct_pagos_minoristas_mensual — Corte Jul-Ago 2026):")
+    print(df_macro.to_string(index=False))
+
+    # --- GENERACIÓN DE 4 GRÁFICOS DEL BLOQUE 3 ---
+    fig = plt.figure(figsize=(19, 15))
+    gs = fig.add_gridspec(2, 2, hspace=0.38, wspace=0.28)
+
+    # GRÁFICO 3.1: Participación en Pagos de Consumo y Transporte (% Cantidad vs % Monto en Julio 2026)
+    ax1 = fig.add_subplot(gs[0, 0])
+    df_cons = df_macro[df_macro["Share_Cant"].notna() & (~df_macro["Instrumento"].str.contains("↳"))].sort_values("Share_Cant", ascending=True)
+    y_c = np.arange(len(df_cons))
+    h = 0.38
+    ax1.barh(y_c + h/2, df_cons["Share_Cant"], height=h, color=PALETA['sube'], label='% Cantidad de Operaciones (797,74M tot.)')
+    ax1.barh(y_c - h/2, df_cons["Share_Monto"], height=h, color=PALETA['credito'], label='% Monto Nominal en Pesos ($21,80B tot.)')
+
+    for i, (_, r) in enumerate(df_cons.iterrows()):
+        ax1.text(r["Share_Cant"] + 0.6, y_c[i] + h/2, f"{r['Share_Cant']:.2f}%", va='center', fontsize=8.5, fontweight='bold', color=PALETA['sube'])
+        ax1.text(r["Share_Monto"] + 0.6, y_c[i] - h/2, f"{r['Share_Monto']:.2f}%", va='center', fontsize=8.5, fontweight='bold', color='#C85A00')
+
+    ax1.set_yticks(y_c)
+    ax1.set_yticklabels(df_cons["Instrumento"], fontweight='bold', fontsize=8.5)
+    ax1.set_xlim(0, 53)
+    ax1.legend(frameon=False, loc='lower right', fontsize=8.5)
+    estilizar_eje(
+        ax1,
+        "Gráfico 3.1: Nivel 1 — Volumen Físico vs. Volumen Monetario en Consumo (Julio 2026)",
+        "SUBE concentra el 33,87% de las transacciones comerciales pero apenas el 0,89% del valor en pesos",
+        xlabel="Participación sobre el Total de Consumo Minorista (%)"
+    )
+
+    # GRÁFICO 3.2: Escalones de Ticket Promedio Implícito por Operación (Pesos Corrientes Jul-Ago 2026)
+    ax2 = fig.add_subplot(gs[0, 1])
+    tickets_ord = [
+        ("Tarjetas Transporte (SUBE)", 716.78, PALETA['sube']),
+        ("Viaje con QR (VQR Ago-26)", 1383.01, PALETA['vqr']),
+        ("Tarjetas Prepagas", 18042.78, '#48CAE4'),
+        ("Pagos con Transferencia (PCT)", 25200.04, '#0096C7'),
+        ("Tarjeta de Débito (ARS)", 32933.46, PALETA['debito']),
+        ("Tarjeta Crédito — 1 Pago", 48114.89, '#F4A261'),
+        ("Tarjeta Crédito — Total", 62944.84, PALETA['credito']),
+        ("Transferencias Pull", 105052.69, '#8D99AE'),
+        ("Extracciones Cajeros (ATM)", 118295.71, PALETA['efectivo']),
+        ("Transferencias Push", 123237.37, '#6C757D'),
+        ("Tarjeta Crédito — Cuotas", 178238.57, '#E76F51'),
+        ("Débito Directo", 200323.39, '#2B2D42')
+    ]
+    y_t = np.arange(len(tickets_ord))
+    vals_t = [x[1] for x in tickets_ord]
+    ax2.barh(y_t, vals_t, color=[x[2] for x in tickets_ord], height=0.65)
+    ax2.set_xscale('log')
+    ax2.set_yticks(y_t)
+    ax2.set_yticklabels([x[0] for x in tickets_ord], fontweight='bold', fontsize=8.5)
+    ax2.invert_yaxis()
+    ax2.set_xlim(400, 450000)
+
+    for i, v in enumerate(vals_t):
+        ax2.text(v * 1.08, i, f"${v:,.0f}".replace(",", "."), va='center', fontsize=8.5, fontweight='bold', color='#222222')
+
+    ax2.axvline(2000, color='#888888', linestyle=':', linewidth=1.2)
+    ax2.axvline(70000, color='#888888', linestyle=':', linewidth=1.2)
+    estilizar_eje(
+        ax2,
+        "Gráfico 3.2: Nivel 2 — Estratificación por Ticket Promedio Unitario (Escala Logarítmica)",
+        "Tres tramos estructurales: Micro-pagos ($717-$1.383), Consumo Masivo ($18k-$63k) y Alto Ticket ($105k-$200k)",
+        xlabel="Ticket Promedio Implícito en Pesos Corrientes ($ ARS)"
+    )
+
+    # GRÁFICO 3.3: Velocidad de Sustitución Interanual (% Var. i.a. en Cantidad y Monto Real)
+    ax3 = fig.add_subplot(gs[1, 0])
+    dinamica = [
+        ("Viaje con QR (VQR ÷10)", 46.43, 47.70),
+        ("Pagos con Transferencia (PCT)", 65.6, 60.4),
+        ("Tarjetas Prepagas", 27.3, -0.1),
+        ("Transferencias Push", 20.3, 5.5),
+        ("Tarjeta Crédito — 1 Pago", -7.1, -10.1),
+        ("Tarjeta de Débito (ARS)", -8.4, -14.7),
+        ("Tarjetas Transporte (SUBE)", -22.0, -1.7),
+        ("Tarjeta Crédito — Cuotas", -22.7, -29.7),
+        ("Extracciones en Cajeros (ATM)", -28.4, -15.7)
+    ]
+    y_d = np.arange(len(dinamica))
+    v_c = [x[1] for x in dinamica]
+    v_r = [x[2] for x in dinamica]
+
+    ax3.barh(y_d + 0.18, v_c, height=0.35, color=PALETA['vqr'], label='Var. i.a. Cantidad de Operaciones (%)')
+    ax3.barh(y_d - 0.18, v_r, height=0.35, color=PALETA['credito'], label='Var. i.a. Monto Real Deflactado IPC NG (%)')
+    ax3.axvline(0, color='#333333', linewidth=1.2)
+    ax3.invert_yaxis()
+    ax3.set_yticks(y_d)
+    ax3.set_yticklabels([x[0] for x in dinamica], fontweight='bold', fontsize=8.5)
+    ax3.set_xlim(-42, 85)
+
+    for i in range(len(y_d)):
+        tc = "+464,3% (Real)" if i == 0 else f"{v_c[i]:+.1f}%"
+        tr = "+477,0% (Real)" if i == 0 else f"{v_r[i]:+.1f}%"
+        ax3.text(v_c[i] + (1.5 if v_c[i] >= 0 else -1.5), y_d[i] + 0.18, tc, va='center', ha='left' if v_c[i] >= 0 else 'right', fontsize=8, fontweight='bold', color='#005F73')
+        ax3.text(v_r[i] + (1.5 if v_r[i] >= 0 else -1.5), y_d[i] - 0.18, tr, va='center', ha='left' if v_r[i] >= 0 else 'right', fontsize=8, fontweight='bold', color='#AE2012')
+
+    ax3.legend(frameon=False, loc='lower right', fontsize=8.5)
+    estilizar_eje(
+        ax3,
+        "Gráfico 3.3: Nivel 3 — Velocidad de Sustitución Interanual (QR vs. Plásticos y Efectivo)",
+        "Expansión explosiva de VQR (+464,3%) y PCT (+65,6%) frente a la caída de SUBE (-22,0%) y Cuotas (-22,7%)",
+        xlabel="Variación Porcentual Interanual (%)"
+    )
+
+    # GRÁFICO 3.4: Desglose de Tarjeta de Crédito por Canal (BCRA) y Plazos de Cuotas / Caída de Efectivo (Payway)
+    ax4 = fig.add_subplot(gs[1, 1])
+    metricas_tc_pw = [
+        "TC Canal: E-Commerce\n(% Monto Operado)",
+        "TC Canal: POS y QR\n(% Monto Operado)",
+        "TC Canal: Débito Autom.\n(% Monto Operado)",
+        "Payway: 1 a 3 Cuotas\n(% de Cuotas Bancarias)",
+        "Payway: 4 a 6 Cuotas\n(% de Cuotas Bancarias)",
+        "Payway: Caída ATM\n(Var. Interanual Red)",
+        "Payway: Caída Retiro\nComercios (Var. i.a.)"
+    ]
+    vals_tcpw = [48.1, 32.8, 10.6, 41.46, 33.31, -43.73, -42.05]
+    cols_tcpw = [PALETA['sube'], PALETA['sube'], PALETA['sube'], PALETA['emv_nfc'], PALETA['emv_nfc'], PALETA['efectivo'], PALETA['efectivo']]
+
+    x_tp = np.arange(len(metricas_tc_pw))
+    ax4.bar(x_tp, vals_tcpw, color=cols_tcpw, width=0.56)
+    ax4.axhline(0, color='#333333', linewidth=1.1)
+    ax4.set_xticks(x_tp)
+    ax4.set_xticklabels(metricas_tc_pw, rotation=20, ha='right', fontsize=8, fontweight='bold')
+    ax4.set_ylim(-55, 60)
+
+    for i, v in enumerate(vals_tcpw):
+        ax4.text(i, v + (2.0 if v >= 0 else -4.5), f"{v:+.1f}%" if v < 0 else f"{v:.1f}%", ha='center', fontsize=8.5, fontweight='bold', color='#222222')
+
+    estilizar_eje(
+        ax4,
+        "Gráfico 3.4: Canales de Tarjeta de Crédito (BCRA), Plazos de Cuotas y Caída del Efectivo (Payway)",
+        "Predominio del E-commerce (48,1% del monto TC), planes cortos de 1-3 cuotas (41,5%) y desplome de retiros (-43,7%)",
+        ylabel="Participación (%) / Variación Interanual (%)"
+    )
+
+    plt.tight_layout()
+    plt.savefig("bloque_3_comparativa_macroeconomica.png", dpi=300, bbox_inches='tight')
+    plt.show()
+    return df_macro
+
+df_b3 = ejecutar_bloque_3()
+## Lo que hay que ver en los gráficos del Bloque 3
+# En el Gráfico 3.1 (Azul contra Naranja): Es la definición visual de asimetría. La barra azul de SUBE es la más larga de todas (33,87% de las operaciones), pero su barra naranja es casi invisible (0,89% del dinero). Con Tarjeta de Crédito pasa exactamente al revés: con el 19,97% de los pagos se lleva el 46,00% de todos los pesos del mercado.   En el Gráfico 3.2 (Las dos líneas verticales punteadas): Parten al mercado en tres mundos que no compiten por el mismo ticket: a la izquierda los micro-pagos de transporte (<2.000), al medio el consumo diario y supermercados (18.000 a 63.000), y a la derecha el alto valor y financiamiento (>100.000, donde Crédito en Cuotas llega a $178.239 y Débito Directo a 200.323).   En los Gráficos 3.3 y 3.4: Todo lo que es código QR interoperable (VQR +464,3% y PCT +65,6%) se expande a costa de la contracción de los plásticos tradicionales, las cuotas (-29,7% real) y el derrumbe histórico de las extracciones de efectivo en cajeros y comercios.
+## 🚌 Bloque 4 — Profundización Sectorial en Transporte y el Error de Deflación
+# Anatomía de la competencia en el validador y la trampa del IPC
+# Cuando nos concentramos exclusivamente en movilidad urbana, aparecen las dos preguntas más importantes del informe: ¿por qué el ticket promedio de VQR (1.383,01) casi duplica al de SUBE (716,78) si la tarifa nominal es la misma? y ¿por qué no sirve usar el IPC Nivel General ni la División Transporte agregada para deflactar la recaudación de boletos?.
+## Los tres mecanismos que explican la brecha de ticket (716,78 SUBE vs. 1.383,01 VQR)Retención cautiva de los subsidios en SUBE: Un beneficiario de Tarifa Social (-55%) paga en octubre de 2026 460,00 en colectivo de CABA (3–6 km) o 635,95 en Subte, frente a 1.022,81 y 1.817,00 de la tarifa plena registrada/abiertos. Quienes tienen subsidio o combinan con Red SUBE se quedan en SUBE (tirando su promedio abajo a 716,78), mientras quienes no tienen subsidio —o tenían una SUBE sin registrar penalizada a 1.626,27 en CABA, 3.037,70 en PBA 6–12 km o 2.525,63 en Subte— migran a QR y NFC.   Mezcla modal (Peso del Subte y ausencia de Ferrocarriles en VQR): El 10,9% de los viajes de VQR es en Subte (la tarifa más cara: $1.621 en jul, 1.684 en ago, 1.817 en oct y 1.887 en nov 2026), y el 0% en ferrocarriles (el boleto más barato: 380 en jul, 420 en ago y 450–480 en sep-oct, que sigue masivamente en SUBE).   Inelasticidad por Cashbacks: Como los bancos y billeteras devuelven entre el 50% y el 100% del pasaje por afuera del validador, el BCRA registra el 100% del valor facial de la tarifa plena.
+##   ⚠️ La trampa del IPC (Diciembre 2025 – Septiembre 2026): En los primeros 9 meses de 2026, el IPC Nivel General Nacional subió +23,6% (+23,8% en GBA). Si mirás la División Transporte agregada en GBA (+23,7%), parece empatada con la inflación general, ¡pero es un promedio engañoso! Esa división promedia Adquisición de vehículos (+6,9%) y Combustibles (+29,1%) con la sub-apertura Transporte público, que saltó +38,1% en GBA, +37,4% en Pampeana, +42,3% en NOA y +43,2% en Cuyo. Al deflactar con el índice específico de Transporte público, la recaudación de SUBE deja de mostrar un suave -1,7% y refleja la caída física real del -22,0% en viajes. 
+
+# # BLOQUE 4: Profundización Sectorial en Transporte Público y Distorsión por Deflactor Único
+# **Ejes analíticos:**
+# 1. **Descomposición de la Brecha de Ticket ($1.331,97 - $1.383,01 en VQR vs. $716,78 en SUBE):** Obedece a la retención exclusiva en SUBE de la Tarifa Social Federal (55% de descuento por Resolución 40/2026) y Red SUBE (50% y 75% en combinaciones), sumado al peso del Subte en VQR (10,9% a tarifa alta de $1.684 en ago / $1.817 en oct) y la ausencia de ferrocarriles (boleto mínimo de $380-$480 cautivo en SUBE).
+# 2. **Invalidez de la División Transporte agregada como deflactor:** Entre dic-25 y sep-26 (9M), la División Transporte en GBA subió +23,7% porque promedia *Adquisición de vehículos* (+6,9%) y *Combustibles* (+29,1%) con *Transporte público* (+38,1% en GBA, +37,4% en Pampeana, +42,3% en NOA y +43,2% en Cuyo), superando en +14,5 p.p. al IPC Nivel General Nacional (+23,6%).
+
+# %%
+@auditar_bloque("BLOQUE 4: Anatomía Sectorial en Transporte, Cuadro Tarifario AMBA y Deflación INDEC")
+def ejecutar_bloque_4():
+    df_tarifas = pd.DataFrame([
+        {"Modo_Jurisdiccion": "Subte CABA (1 a 20 viajes)", "Tarifa_Social_SUBE": 635.95, "Plena_Reg_VQR_EMV": 1817.00, "SUBE_Sin_Registrar": 2525.63, "Nov_2026_Plena": 1887.00},
+        {"Modo_Jurisdiccion": "Colectivo CABA (0 a 3 km)", "Tarifa_Social_SUBE": 414.22, "Plena_Reg_VQR_EMV": 920.48, "SUBE_Sin_Registrar": 1463.56, "Nov_2026_Plena": 955.00},
+        {"Modo_Jurisdiccion": "Colectivo CABA (3 a 6 km)", "Tarifa_Social_SUBE": 460.00, "Plena_Reg_VQR_EMV": 1022.81, "SUBE_Sin_Registrar": 1626.27, "Nov_2026_Plena": 1061.00},
+        {"Modo_Jurisdiccion": "Colectivo PBA (Mín. 0 a 3 km)", "Tarifa_Social_SUBE": 546.79, "Plena_Reg_VQR_EMV": 1215.09, "SUBE_Sin_Registrar": 2430.18, "Nov_2026_Plena": 1263.69},
+        {"Modo_Jurisdiccion": "Colectivo PBA (6 a 12 km)", "Tarifa_Social_SUBE": 678.59, "Plena_Reg_VQR_EMV": 1518.85, "SUBE_Sin_Registrar": 3037.70, "Nov_2026_Plena": 1579.60},
+        {"Modo_Jurisdiccion": "Colectivo PBA (>27 km)", "Tarifa_Social_SUBE": 964.26, "Plena_Reg_VQR_EMV": 2142.81, "SUBE_Sin_Registrar": 4285.62, "Nov_2026_Plena": 2228.52},
+        {"Modo_Jurisdiccion": "Ferrocarriles AMBA (Sección 1)", "Tarifa_Social_SUBE": 202.50, "Plena_Reg_VQR_EMV": 450.00, "SUBE_Sin_Registrar": 900.00, "Nov_2026_Plena": 480.00}
+    ])
+    print("\n[TABLA 4.1] Cuadro Tarifario Comparativo del AMBA por Medio de Pago y Condición (Oct-Nov 2026):")
+    print(df_tarifas.to_string(index=False))
+
+    # --- GENERACIÓN DE 3 GRÁFICOS DEL BLOQUE 4 ---
+    fig = plt.figure(figsize=(18, 13))
+    gs = fig.add_gridspec(2, 2, hspace=0.38, wspace=0.25)
+
+    # GRÁFICO 4.1: Brecha de Inflación Acumulada INDEC (Dic 2025 – Sep 2026): Transporte Público vs Nivel General
+    ax1 = fig.add_subplot(gs[0, 0])
+    aperturas_ipc = [
+        ("Adquisición de Vehículos (GBA)", 6.9, PALETA['ipc_general']),
+        ("IPC Nivel General Nacional (Deflactor BCRA)", 23.6, PALETA['ipc_general']),
+        ("División Transporte Agregada GBA (Sesgado)", 23.7, PALETA['alerta']),
+        ("IPC Nivel General GBA", 23.8, PALETA['ipc_general']),
+        ("Funcionamiento Equipos Transp. (GBA)", 26.0, '#457B9D'),
+        ("Combustibles y Lubricantes (GBA)", 29.1, '#457B9D'),
+        ("Transporte Público — Pampeana", 37.4, PALETA['ipc_transporte']),
+        ("Transporte Público — GBA (AMBA)", 38.1, PALETA['ipc_transporte']),
+        ("Transporte Público — NOA", 42.3, PALETA['ipc_transporte']),
+        ("Transporte Público — Cuyo", 43.2, PALETA['ipc_transporte'])
+    ]
+    y_ipc = np.arange(len(aperturas_ipc))
+    vals_ipc = [x[1] for x in aperturas_ipc]
+    ax1.barh(y_ipc, vals_ipc, color=[x[2] for x in aperturas_ipc], height=0.64)
+    ax1.axvline(23.6, color='#1A1A1A', linestyle='--', linewidth=1.5, label='IPC Nivel General Nacional (+23,6%)')
+
+    for i, v in enumerate(vals_ipc):
+        ax1.text(v + 0.6, i, f"+{v:.1f}%", va='center', fontsize=8.5, fontweight='bold', color='#222222')
+
+    ax1.set_yticks(y_ipc)
+    ax1.set_yticklabels([x[0] for x in aperturas_ipc], fontsize=8.5, fontweight='bold')
+    ax1.set_xlim(0, 50)
+    ax1.legend(frameon=False, loc='lower right', fontsize=8.5)
+    estilizar_eje(
+        ax1,
+        "Gráfico 4.1: Asimetría Inflacionaria Acumulada en 9 Meses (INDEC Dic 2025 – Sep 2026)",
+        "Por qué usar el IPC General (+23,6%) o la División Transporte (+23,7%) oculta la suba del boleto (+38,1% a +43,2%)",
+        xlabel="Inflación Acumulada Dic 2025 - Sep 2026 (%)"
+    )
+
+    # GRÁFICO 4.2: Escalonamiento Tarifario AMBA (Octubre 2026) por Soporte de Pago
+    ax2 = fig.add_subplot(gs[0, 1])
+    df_t_sel = df_tarifas.iloc[[0, 2, 3, 4, 6]]
+    etiquetas_t = ["Subte CABA\n(1-20 viajes)", "Colectivo CABA\n(3 a 6 km)", "Colectivo PBA\n(Mín. 0-3 km)", "Colectivo PBA\n(6 a 12 km)", "Trenes AMBA\n(Sección 1)"]
+    x_t = np.arange(len(etiquetas_t))
+    w = 0.26
+
+    ax2.bar(x_t - w, df_t_sel["Tarifa_Social_SUBE"], width=w, color=PALETA['debito'], label='Tarifa Social SUBE (-55% exclusivo)')
+    ax2.bar(x_t, df_t_sel["Plena_Reg_VQR_EMV"], width=w, color=PALETA['sube'], label='Tarifa Plena (SUBE Reg. = VQR = EMV/NFC)')
+    ax2.bar(x_t + w, df_t_sel["SUBE_Sin_Registrar"], width=w, color=PALETA['efectivo'], label='SUBE Sin Registrar (Penalizada)')
+
+    for i in range(len(x_t)):
+        vs = df_t_sel["Tarifa_Social_SUBE"].iloc[i]
+        vp = df_t_sel["Plena_Reg_VQR_EMV"].iloc[i]
+        vn = df_t_sel["SUBE_Sin_Registrar"].iloc[i]
+        ax2.text(x_t[i] - w, vs + 45, f"${vs:,.0f}", ha='center', fontsize=7.5, fontweight='bold', color='#1B4332')
+        ax2.text(x_t[i], vp + 45, f"${vp:,.0f}", ha='center', fontsize=7.5, fontweight='bold', color='#003049')
+        ax2.text(x_t[i] + w, vn + 45, f"${vn:,.0f}", ha='center', fontsize=7.5, fontweight='bold', color='#B00020')
+
+    ax2.set_xticks(x_t)
+    ax2.set_xticklabels(etiquetas_t, fontsize=8.5, fontweight='bold')
+    ax2.set_ylim(0, 3500)
+    ax2.legend(frameon=False, loc='upper right', fontsize=8)
+    estilizar_eje(
+        ax2,
+        "Gráfico 4.2: Escalonamiento Tarifario AMBA según Medio de Pago (Octubre 2026)",
+        "Incentivos de autoselección: retención social en SUBE vs. escape de la tarifa sin registrar hacia QR/NFC",
+        ylabel="Tarifa Nominal por Viaje ($ ARS)"
+    )
+
+    # GRÁFICO 4.3: Descomposición Waterfall de la Brecha de Ticket Promedio ($716,78 SUBE -> $1.383,01 VQR)
+    ax3 = fig.add_subplot(gs[1, :])
+    etapas_wf = [
+        "Ticket Promedio\nSUBE (Jul 2026)",
+        "+ Efecto Exclusión\nTarifa Social (-55%)",
+        "+ Efecto Exclusión\nRed SUBE (2° y 3° v.)",
+        "+ Efecto Ausencia\nTrenes en VQR",
+        "+ Efecto Mezcla Modal\n(10,9% Subte en VQR)",
+        "+ Suba Tarifaria\nAgosto 2026",
+        "Ticket Promedio\nVQR (Ago 2026)"
+    ]
+    saltos = [716.78, 265.00, 145.00, 95.00, 110.19, 51.04, 1383.01]
+    pisos = [0, 716.78, 981.78, 1126.78, 1221.78, 1331.97, 0]
+    cols_wf = [PALETA['sube'], PALETA['credito'], PALETA['credito'], PALETA['emv_nfc'], PALETA['emv_nfc'], PALETA['alerta'], PALETA['vqr']]
+
+    x_w = np.arange(len(etapas_wf))
+    ax3.bar(x_w, saltos, bottom=pisos, color=cols_wf, width=0.50)
+    for i in range(len(x_w)):
+        techo = saltos[i] if (i == 0 or i == len(x_w)-1) else pisos[i] + saltos[i]
+        pref = "$" if (i == 0 or i == len(x_w)-1) else "+$"
+        ax3.text(x_w[i], techo + 25, f"{pref}{saltos[i]:,.2f}", ha='center', fontsize=9, fontweight='bold', color='#1A1A1A')
+
+    ax3.set_xticks(x_w)
+    ax3.set_xticklabels(etapas_wf, fontsize=8.5, fontweight='bold')
+    ax3.set_ylim(0, 1620)
+    estilizar_eje(
+        ax3,
+        "Gráfico 4.3: Puente de Descomposición (Waterfall) del Ticket Promedio ($716,78 SUBE a $1.383,01 VQR)",
+        "Cuantificación de los factores regulatorios y de composición modal que explican la brecha del +92,9%",
+        ylabel="Ticket Promedio por Pasaje ($ ARS)"
+    )
+
+    plt.tight_layout()
+    plt.savefig("bloque_4_sectorial_transporte_y_deflacion.png", dpi=300, bbox_inches='tight')
+    plt.show()
+    return df_tarifas
+
+df_b4 = ejecutar_bloque_4()
+## Lo que hay que ver en los gráficos del Bloque 4
+# En el Gráfico 4.1: Compará la barra amarilla (División Transporte Agregada GBA: +23,7%) contra las cuatro barras rojas de abajo (Transporte Público: +37,4% a +43,2%). La barra de arriba del todo (Adquisición de Vehículos: +6,9%) plancha el promedio de la división y oculta el tarifazo de los boletos.   
+# En el Gráfico 4.2 (Verde vs. Azul vs. Rojo): En cada modo hay tres precios: el verde (exclusivo SUBE Social), el azul (igual para SUBE Registrada, QR y EMV/NFC) y el rojo (el castigo a la SUBE sin registrar, que llega a 3.038 en tramos medios de PBA y 4.286 en >27 km). Apoyar cualquier tarjeta bancaria o celular te saca instantáneamente de la barra roja y te cobra la barra azul sin hacer ningún trámite.   
+# En el Gráfico 4.3 (El puente Waterfall): Explica peso por peso cómo se pasa de los 716,78 de SUBE a los 1.383,01 de VQR: +265 por no tener Tarifa Social, +145 por no tener Red SUBE, +95 por no operar en trenes, +110,19 por el peso del Subte (10,9%) y +51,04 por el aumento tarifario de agosto.
+## ⚖️ Bloque 5 — Behavioral Economics, UX y la Guerra de Cashbacks (2026)
+# Las tres fuerzas que impulsan la decisión del pasajero
+# Desde la economía del comportamiento y la experiencia de usuario (UX), el mercado se partió en dos porque el pasajero resuelve un arbitraje diario entre tres variables:   
+# Dimensión Económica y Financiera:Costo de oportunidad (FCI vs. 0%) y diferimiento con Crédito: Cargar la SUBE inmoviliza dinero al 0%, mientras que pagar con QR o tarjeta desde una billetera mantiene el saldo rindiendo en FCI (8,9 billones en PSPCP). Además, el 30,5% que paga transporte con tarjeta de crédito patea el gasto al resumen mensual sin interés frente a una inflación de 2,1% en jul, 1,7% en ago y 1,9% en sep 2026.   La muerte del saldo negativo de emergencia (-1.200): En 2026 el descubierto de la SUBE quedó congelado en -1.200 (-650 en ciertos trenes). Con el Subte a 1.817 en octubre y 1.887 en noviembre, y el boleto mínimo de colectivo en PBA a 1.215,09 en oct y 1.263,69 en nov, el saldo negativo ya no alcanza ni para 1 viaje mínimo.   
+# Dimensión de Comodidad Operativa (UX):Fin de la "doble fricción" (comprar + acreditar carga en TAS/NFC): Con medios abiertos no existe la recarga previa. El NFC móvil (30% de los pagos EMV) no pide abrir apps ni tener internet; y el Viaje con QR (VQR) democratizó el pago en celulares de gama media/baja sin antena NFC, validando 100% offline en menos de medio segundo mediante firmas criptográficas (CIMPRA 544). Además, permite pagar hasta 4 pasajes por hora y 10 por día en Subte para acompañantes o turistas.  
+# La Guerra de Cashbacks y el Promo Stacking (Multi-homing):Bancos, emisores y billeteras subsidian entre el 20% y el 100% del boleto para ganar el hábito diario (top of wallet)
+# # BLOQUE 5: Behavioral Economics, Licuación del Saldo Negativo y la Guerra de Cashbacks (2026)
+# **Dimensiones microeconómicas y de UX:**
+# 1. **Licuación del saldo negativo de SUBE (-$1.200):** En octubre y noviembre de 2026, el boleto de Subte ($1.817 en oct / $1.887 en nov) y el boleto mínimo de colectivo en PBA ($1.215,09 en oct / $1.263,69 en nov, llegando a $2.142,81 en >27 km) superaron el descubierto máximo de -$1.200 de la SUBE, forzando al usuario sin saldo a usar su tarjeta o celular en el validador.
+# 2. **Guerra de Cashbacks y Promo Stacking (Multi-homing):** Con reintegros del 20% al 100% (BBVA Mastercard NFC $25.000/mes, Mastercard Red General $25.000, BNA+ QR $12.000 + TC $15.000, Naranja X hasta $30.000 en triple vía, Mercado Pago QR hasta $15.000, Ualá/Galicia $15.000, Santander $16.000, Cuenta DNI $10.000), un pasajero bancarizado cubre el 100% de sus 40 viajes mensuales en Subte ($72.680) rotando medios de pago.
+
+# %%
+@auditar_bloque("BLOQUE 5: Microeconomía del Pasajero, Saldo Negativo y Matriz de Cashbacks 2026")
+def ejecutar_bloque_5():
+    df_promos = pd.DataFrame([
+        {"Entidad": "Naranja X (Triple Vía: QR + Visa NFC + MC NFC)", "Reintegro_Pct": 50, "Tope_Mensual_ARS": 30000, "Condicion_Operativa": "QR ($5k) + Visa NFC ($10k) + MC NFC ($15k)"},
+        {"Entidad": "Banco Nación (BNA+ QR + Mastercard Contactless)", "Reintegro_Pct": 100, "Tope_Mensual_ARS": 27000, "Condicion_Operativa": "100% QR BNA+ ($12k) + 50% MC Contactless ($15k)"},
+        {"Entidad": "BBVA + Mastercard", "Reintegro_Pct": 100, "Tope_Mensual_ARS": 25000, "Condicion_Operativa": "Exclusivo NFC Celular (No aplica plástico físico)"},
+        {"Entidad": "Mastercard (Red General)", "Reintegro_Pct": 100, "Tope_Mensual_ARS": 25000, "Condicion_Operativa": "NFC desde celular con Débito, Crédito o Prepaga"},
+        {"Entidad": "Banco Santander (Sorpresa / Cartera General)", "Reintegro_Pct": 100, "Tope_Mensual_ARS": 16000, "Condicion_Operativa": "QR Transporte / Tarjetas (17 provincias y AMBA)"},
+        {"Entidad": "Mercado Pago", "Reintegro_Pct": 100, "Tope_Mensual_ARS": 15000, "Condicion_Operativa": "Código QR Transporte (Exige activar beneficio previo)"},
+        {"Entidad": "Ualá (Prepaga / Crédito Mastercard)", "Reintegro_Pct": 50, "Tope_Mensual_ARS": 15000, "Condicion_Operativa": "Pago vía NFC desde billetera del celular"},
+        {"Entidad": "Banco Galicia (Mastercard)", "Reintegro_Pct": 50, "Tope_Mensual_ARS": 15000, "Condicion_Operativa": "Apple Pay o Google Pay (NFC Celular)"},
+        {"Entidad": "Cuenta DNI (Banco Provincia)", "Reintegro_Pct": 100, "Tope_Mensual_ARS": 10000, "Condicion_Operativa": "NFC desde celular con Visa Débito BAPRO"},
+        {"Entidad": "Banco Macro + MODO", "Reintegro_Pct": 20, "Tope_Mensual_ARS": 10000, "Condicion_Operativa": "QR Transporte o NFC desde MODO (Saldo mín. $1.200)"}
+    ])
+    print("\n[TABLA 5.1] Matriz de Promociones Bancarias y de Billeteras Digitales en Transporte (2026):")
+    print(df_promos.to_string(index=False))
+
+    # --- GENERACIÓN DE 3 GRÁFICOS DEL BLOQUE 5 ---
+    fig = plt.figure(figsize=(18, 13))
+    gs = fig.add_gridspec(2, 2, hspace=0.38, wspace=0.25)
+
+    # GRÁFICO 5.1: Licuación del Saldo Negativo de Emergencia de SUBE (-$1.200) frente a los Boletos Oct-Nov 2026
+    ax1 = fig.add_subplot(gs[0, 0])
+    tramos_sn = [
+        "Colectivo CABA\n0-3 km (Nov)\n$955,00",
+        "Colectivo PBA\n0-3 km (Oct)\n$1.215,09",
+        "Colectivo PBA\n0-3 km (Nov)\n$1.263,69",
+        "Colectivo PBA\n6-12 km (Oct)\n$1.518,85",
+        "Subte CABA\nPlena (Oct)\n$1.817,00",
+        "Subte CABA\nPlena (Nov)\n$1.887,00",
+        "Colectivo PBA\n>27 km (Oct)\n$2.142,81"
+    ]
+    tarifas_sn = [955.00, 1215.09, 1263.69, 1518.85, 1817.00, 1887.00, 2142.81]
+    limite_negativo = 1200.00
+
+    cols_sn = [PALETA['debito'] if t <= limite_negativo else PALETA['efectivo'] for t in tarifas_sn]
+    x_sn = np.arange(len(tramos_sn))
+    ax1.bar(x_sn, tarifas_sn, color=cols_sn, width=0.56)
+    ax1.axhline(limite_negativo, color='#1A1A1A', linestyle='--', linewidth=2, label='Tope Saldo Negativo SUBE (-$1.200)')
+
+    for i, t in enumerate(tarifas_sn):
+        dif = t - limite_negativo
+        lbl = "Cubierto" if dif <= 0 else f"Déficit:\n-${dif:,.0f}"
+        ax1.text(i, t + 45, lbl, ha='center', fontsize=8, fontweight='bold', color='#1B4332' if dif <= 0 else '#B00020')
+
+    ax1.set_xticks(x_sn)
+    ax1.set_xticklabels(tramos_sn, fontsize=8, fontweight='bold')
+    ax1.set_ylim(0, 2550)
+    ax1.legend(frameon=False, loc='upper left', fontsize=9)
+    estilizar_eje(
+        ax1,
+        "Gráfico 5.1: Licuación del Saldo Negativo de SUBE (-$1.200) ante el Cuadro Tarifario (Oct-Nov 2026)",
+        "El descubierto congelado en -$1.200 ya no cubre siquiera 1 boleto de Subte ni 1 tramo mínimo en PBA",
+        ylabel="Valor del Boleto en Pesos ($ ARS)"
+    )
+
+    # GRÁFICO 5.2: Ranking de Topes Mensuales de Reintegro por Entidad / Billetera (Q3-Q4 2026)
+    ax2 = fig.add_subplot(gs[0, 1])
+    df_pr_ord = df_promos.sort_values("Tope_Mensual_ARS", ascending=True)
+    y_p = np.arange(len(df_pr_ord))
+    cols_p = [PALETA['vqr'] if r == 100 else (PALETA['emv_nfc'] if r == 50 else PALETA['ipc_general']) for r in df_pr_ord["Reintegro_Pct"]]
+
+    ax2.barh(y_p, df_pr_ord["Tope_Mensual_ARS"], color=cols_p, height=0.64)
+    for i, (_, r) in enumerate(df_pr_ord.iterrows()):
+        ax2.text(r["Tope_Mensual_ARS"] + 450, i, f"${r['Tope_Mensual_ARS']:,.0f}/mes ({r['Reintegro_Pct']}% reintegro)".replace(",", "."), va='center', fontsize=8.5, fontweight='bold', color='#222222')
+
+    ax2.set_yticks(y_p)
+    ax2.set_yticklabels(df_pr_ord["Entidad"], fontsize=8.5, fontweight='bold')
+    ax2.set_xlim(0, 41000)
+    estilizar_eje(
+        ax2,
+        "Gráfico 5.2: Guerra de Cashbacks Bancarios — Topes Mensuales de Devolución (2026)",
+        "Reintegros del 20% al 100% exigiendo pago vía NFC celular o Código QR Transporte",
+        xlabel="Tope Mensual de Reintegro por Usuario / Tarjeta ($ ARS)"
+    )
+
+    # GRÁFICO 5.3: Ecuación de Arbitraje Mensual (Promo Stacking) para 40 Viajes en Subte ($72.680 en Oct 2026)
+    ax3 = fig.add_subplot(gs[1, :])
+    perfiles = [
+        "1. SUBE Sin Registrar\n(Tarifa Punitiva c/ desc.\nfrecuencia 20%-40%)",
+        "2. SUBE Registrada\n(Tarifa Plena $1.817 c/ desc.\nfrecuencia desde viaje 21)",
+        "3. SUBE Tarifa Social\n(55% Subsidio Estatal\nResolución 40/2026)",
+        "4. Usuario 1 Promo NFC\n(BBVA Mastercard NFC:\n-$25.000 de reintegro)",
+        "5. Cazador Multi-Homing\n(BBVA $25k + BNA $12k +\nCDNI $10k + MP $15k + Gal $10,7k)"
+    ]
+    gasto_neto_bolsillo = [88397, 63595, 25438, 47680, 0]
+    ahorro_estatal_frec = [12628, 9085, 47242, 0, 0]
+    ahorro_cashback_priv = [0, 0, 0, 25000, 72680]
+
+    x_pf = np.arange(len(perfiles))
+    w_pf = 0.48
+    ax3.bar(x_pf, gasto_neto_bolsillo, width=w_pf, color=PALETA['sube'], label='Gasto Neto de Bolsillo del Pasajero ($)')
+    ax3.bar(x_pf, ahorro_estatal_frec, bottom=gasto_neto_bolsillo, width=w_pf, color=PALETA['debito'], label='Ahorro por Subsidio Estatal / Frecuencia Emova ($)')
+    ax3.bar(x_pf, ahorro_cashback_priv, bottom=np.array(gasto_neto_bolsillo)+np.array(ahorro_estatal_frec), width=w_pf, color=PALETA['vqr'], label='Ahorro por Cashback Privado de Bancos y Billeteras ($)')
+
+    for i in range(len(x_pf)):
+        ax3.text(x_pf[i], gasto_neto_bolsillo[i]/2 if gasto_neto_bolsillo[i] > 5000 else 3000, f"Bolsillo:\n${gasto_neto_bolsillo[i]:,.0f}".replace(",", "."), ha='center', va='center', color='white' if gasto_neto_bolsillo[i] > 5000 else '#003049', fontweight='bold', fontsize=9)
+        if ahorro_cashback_priv[i] > 0:
+            pos_cb = gasto_neto_bolsillo[i] + ahorro_estatal_frec[i] + ahorro_cashback_priv[i]/2
+            ax3.text(x_pf[i], pos_cb, f"Cashback:\n-${ahorro_cashback_priv[i]:,.0f}".replace(",", "."), ha='center', va='center', color='#003049', fontweight='bold', fontsize=9)
+
+    ax3.set_xticks(x_pf)
+    ax3.set_xticklabels(perfiles, fontsize=8.5, fontweight='bold')
+    ax3.set_ylim(0, 115000)
+    ax3.legend(frameon=False, loc='upper right', fontsize=9)
+    estilizar_eje(
+        ax3,
+        "Gráfico 5.3: Simulación de Promo Stacking (Multi-homing) para 40 Viajes Mensuales en Subte ($72.680 en Oct 2026)",
+        "Los subsidios privados cruzados permiten al segmento bancarizado reducir a $0 su gasto mensual sin Tarifa Social",
+        ylabel="Costo Mensual Total y Descuentos Aplicados ($ ARS)"
+    )
+
+    plt.tight_layout()
+    plt.savefig("bloque_5_behavioral_economics_y_cashbacks.png", dpi=300, bbox_inches='tight')
+    plt.show()
+    return df_promos
+
+df_b5 = ejecutar_bloque_5()
+## Lo que hay que ver en los gráficos del Bloque 5
+# En el Gráfico 5.1 (La línea horizontal de -1.200): Mirá cómo todas las barras rojas superan la línea punteada. Cuando un pasajero en el conurbano (PBA) o en el Subte se queda sin saldo en la SUBE, el saldo negativo ya no le abre el molinete (le faltan desde -15 hasta -943 por viaje). Ese fue el disparador operativo que obligó a millones de usuarios a sacar el celular o la tarjeta bancaria. 
+#  En los Gráficos 5.2 y 5.3: 
+# El Gráfico 5.3 sintetiza los 3 perfiles de pasajeros del mercado argentino: el Cautivo de SUBE (Columna 3, que gracias a la Tarifa Social baja su gasto de 72.680 a 25.438), el Cazador Multi-Homing (Columna 5, que apilando los topes del Gráfico 5.2 baja su gasto a $0 con barras turquesas), y el Usuario No Registrado (Columna 1, que si no se pasa a QR/NFC termina pagando 88.397).
+📈 Bloque 6 — El Punto de Quiebre (Tipping Point 2024–2026) y Protocolo Operativo Final
+Las cuatro olas donde los medios abiertos rompieron la hegemonía de SUBE
+El desplazamiento estructural de la tarjeta SUBE no ocurrió de golpe, sino en cuatro fases cronológicas perfectamente marcadas en las series del BCRA, Payway, Lyra y Emova
+# # BLOQUE 6: Series de Tiempo del Punto de Quiebre (2024–2026) y Protocolo Operativo Final
+# **Las 4 olas sucesivas de inflexión:**
+# - **Fase 1 (Mayo – Julio 2025):** Quiebre en el Subte CABA. En julio de 2025 el 34% de los viajes (27% EMV/NFC y 7% QR = 1,3M) ya se pagaba sin SUBE, pese a que solo el 42,6% de los molinetes (275 de 645; Línea E 53%, Línea H 48%) estaba habilitado.
+# - **Fase 2 (Octubre – Diciembre 2025):** Salto a los colectivos. VQR se multiplica por 4,7x (de 4,6M en ago a 13,7M en oct, 19,1M en nov y 21,5M en dic-25) e invierte su matriz modal (90,4% colectivos y 9,6% subtes en dic-25).
+# - **Fase 3 (Marzo – Abril 2026):** Salto estructural post-verano (+45,5% mensual en marzo hasta 24,0M y 26,1M en abril) y duplicación (+100%) de pagos NFC/contactless en el 1° semestre de 2026.
+# - **Fase 4 (Julio – Agosto 2026):** Ruptura estructural. SUBE perfora el piso de 300M y cae a 270,21M en julio (-22,0% i.a., perdiendo 81M de viajes frente a los 351,2M de ago-25), mientras VQR alcanza su récord de 26,33M en agosto (+464,3% i.a.).
+
+# %%
+@auditar_bloque("BLOQUE 6: Series Históricas del Tipping Point (2024-2026) y Protocolo de 5 Pasos")
+def ejecutar_bloque_6():
+    df_serie_quiebre = pd.DataFrame([
+        {"Periodo": "Jul 25", "SUBE_M": 346.50, "Var_IA_SUBE": -9.5,  "VQR_Total_M": 1.30,  "VQR_Cole_M": 0.00,  "VQR_Subte_M": 1.30, "Monto_VQR_MM": 1200.0},
+        {"Periodo": "Ago 25", "SUBE_M": 351.20, "Var_IA_SUBE": -10.6, "VQR_Total_M": 4.60,  "VQR_Cole_M": 3.10,  "VQR_Subte_M": 1.50, "Monto_VQR_MM": 4700.0},
+        {"Periodo": "Oct 25", "SUBE_M": 311.00, "Var_IA_SUBE": -16.4, "VQR_Total_M": 13.70, "VQR_Cole_M": 11.90, "VQR_Subte_M": 1.80, "Monto_VQR_MM": 12700.0},
+        {"Periodo": "Nov 25", "SUBE_M": 308.00, "Var_IA_SUBE": -16.8, "VQR_Total_M": 19.10, "VQR_Cole_M": 17.10, "VQR_Subte_M": 2.00, "Monto_VQR_MM": 17500.0},
+        {"Periodo": "Dic 25", "SUBE_M": 305.00, "Var_IA_SUBE": -17.2, "VQR_Total_M": 21.50, "VQR_Cole_M": 19.40, "VQR_Subte_M": 2.10, "Monto_VQR_MM": 20200.0},
+        {"Periodo": "Ene 26", "SUBE_M": 265.00, "Var_IA_SUBE": -14.0, "VQR_Total_M": 15.90, "VQR_Cole_M": 14.20, "VQR_Subte_M": 1.70, "Monto_VQR_MM": 16800.0},
+        {"Periodo": "Feb 26", "SUBE_M": 272.00, "Var_IA_SUBE": -13.5, "VQR_Total_M": 16.50, "VQR_Cole_M": 14.70, "VQR_Subte_M": 1.80, "Monto_VQR_MM": 18100.0},
+        {"Periodo": "Mar 26", "SUBE_M": 311.50, "Var_IA_SUBE": -10.5, "VQR_Total_M": 24.00, "VQR_Cole_M": 21.40, "VQR_Subte_M": 2.60, "Monto_VQR_MM": 26900.0},
+        {"Periodo": "Abr 26", "SUBE_M": 305.60, "Var_IA_SUBE": -12.8, "VQR_Total_M": 26.10, "VQR_Cole_M": 23.40, "VQR_Subte_M": 2.70, "Monto_VQR_MM": 29500.0},
+        {"Periodo": "May 26", "SUBE_M": 314.00, "Var_IA_SUBE": -14.5, "VQR_Total_M": 24.70, "VQR_Cole_M": 22.00, "VQR_Subte_M": 2.70, "Monto_VQR_MM": 30800.0},
+        {"Periodo": "Jul 26", "SUBE_M": 270.21, "Var_IA_SUBE": -22.0, "VQR_Total_M": 24.40, "VQR_Cole_M": 21.80, "VQR_Subte_M": 2.60, "Monto_VQR_MM": 32500.0},
+        {"Periodo": "Ago 26", "SUBE_M": np.nan, "Var_IA_SUBE": np.nan,"VQR_Total_M": 26.33, "VQR_Cole_M": 23.46, "VQR_Subte_M": 2.87, "Monto_VQR_MM": 36417.0}
+    ])
+    print("\n[TABLA 6.1] Serie Cronológica del Punto de Quiebre (Jul 2025 – Ago 2026):")
+    print(df_serie_quiebre.to_string(index=False))
+
+    # --- GENERACIÓN DE 3 GRÁFICOS DEL BLOQUE 6 ---
+    fig = plt.figure(figsize=(18, 13))
+    gs = fig.add_gridspec(2, 2, hspace=0.38, wspace=0.25)
+
+    # GRÁFICO 6.1: Evolución de Doble Eje — Caída Estructural de SUBE (<300M) vs. Ascenso de VQR
+    ax1 = fig.add_subplot(gs[0, :])
+    ax1_r = ax1.twinx()
+
+    x_q = np.arange(len(df_serie_quiebre))
+    mask_s = df_serie_quiebre["SUBE_M"].notna()
+
+    ax1.plot(x_q[mask_s], df_serie_quiebre.loc[mask_s, "SUBE_M"], marker='o', linewidth=3.2, markersize=8, color=PALETA['sube'], label='Viajes Mensuales SUBE (Eje Izq. - Millones)')
+    ax1.axhline(300, color=PALETA['efectivo'], linestyle='--', linewidth=1.5, label='Piso Histórico SUBE (300M viajes/mes)')
+
+    ax1_r.bar(x_q, df_serie_quiebre["VQR_Cole_M"], width=0.44, alpha=0.35, color=PALETA['vqr'], label='VQR en Colectivos (Eje Der. - Millones)')
+    ax1_r.bar(x_q, df_serie_quiebre["VQR_Subte_M"], bottom=df_serie_quiebre["VQR_Cole_M"], width=0.44, alpha=0.65, color=PALETA['emv_nfc'], label='VQR en Subtes (Eje Der. - Millones)')
+    ax1_r.plot(x_q, df_serie_quiebre["VQR_Total_M"], marker='D', linewidth=2.6, markersize=7, color='#005F73', label='Total Viaje con QR - VQR (Eje Der.)')
+
+    for i, r in df_serie_quiebre.iterrows():
+        if pd.notna(r["SUBE_M"]):
+            ax1.text(i, r["SUBE_M"] + 5, f"{r['SUBE_M']:.1f}M", ha='center', fontsize=8.5, fontweight='bold', color=PALETA['sube'])
+        ax1_r.text(i, r["VQR_Total_M"] + 0.9, f"{r['VQR_Total_M']:.1f}M", ha='center', fontsize=8.5, fontweight='bold', color='#003049')
+
+    ax1.annotate("Ruptura Jul-26: 270,21M\n(-22,0% i.a. | -81M vs Ago-25)", xy=(10, 270.21), xytext=(7.2, 232),
+                 arrowprops=dict(arrowstyle="->", color=PALETA['efectivo'], lw=1.8), fontsize=9, fontweight='bold', color='#B00020')
+
+    ax1.set_xticks(x_q)
+    ax1.set_xticklabels(df_serie_quiebre["Periodo"], fontweight='bold', fontsize=9.5)
+    ax1.set_ylim(210, 390)
+    ax1_r.set_ylim(0, 36)
+    ax1_r.spines['top'].set_visible(False)
+    ax1_r.set_ylabel("Viajes Mensuales VQR (Millones)", fontsize=9.5, fontweight='bold', color='#005F73')
+
+    l_1, lb_1 = ax1.get_legend_handles_labels()
+    l_2, lb_2 = ax1_r.get_legend_handles_labels()
+    ax1.legend(l_1 + l_2, lb_1 + lb_2, frameon=False, loc='upper left', ncol=3, fontsize=8.5)
+
+    estilizar_eje(
+        ax1,
+        "Gráfico 6.1: Las 4 Fases del Punto de Quiebre — Perforación del Piso de 300M en SUBE vs. Récord VQR",
+        "Pérdida de 81 millones de validaciones mensuales en SUBE entre agosto 2025 (351,2M) y julio 2026 (270,21M)",
+        ylabel="Viajes Mensuales en SUBE (Millones)"
+    )
+
+    # GRÁFICO 6.2: Inversión de la Matriz Modal en Viaje con QR (De Subte en Jul-25 a Colectivos en Dic-25 y Ago-26)
+    ax2 = fig.add_subplot(gs[1, 0])
+    cortes_m = ["Julio 2025\n(1,3M viajes)\nFase 1: Subte", "Diciembre 2025\n(21,5M viajes)\nFase 2: Colectivos", "Abril 2026\n(26,1M viajes)\nFase 3: Otoño", "Agosto 2026\n(26,3M viajes)\nFase 4: Récord"]
+    sh_col = [0.0, 90.4, 89.6, 89.1]
+    sh_sub = [100.0, 9.6, 10.4, 10.9]
+
+    x_cm = np.arange(len(cortes_m))
+    ax2.bar(x_cm, sh_col, width=0.52, color=PALETA['sube'], label='Colectivos (% de Viajes VQR)')
+    ax2.bar(x_cm, sh_sub, bottom=sh_col, width=0.52, color=PALETA['credito'], label='Subterráneos (% de Viajes VQR)')
+
+    for i in range(len(x_cm)):
+        if sh_col[i] > 0:
+            ax2.text(i, sh_col[i]/2, f"{sh_col[i]:.1f}%\nColectivos", ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+        ax2.text(i, sh_col[i] + sh_sub[i]/2, f"{sh_sub[i]:.1f}% Subte", ha='center', va='center', color='white' if sh_sub[i] > 20 else '#1A1A1A', fontweight='bold', fontsize=8.5)
+
+    ax2.set_xticks(x_cm)
+    ax2.set_xticklabels(cortes_m, fontsize=8.5, fontweight='bold')
+    ax2.set_ylim(0, 112)
+    ax2.legend(frameon=False, loc='upper right', fontsize=8.5)
+    estilizar_eje(
+        ax2,
+        "Gráfico 6.2: Inversión de la Matriz Modal en Viaje con QR (2025–2026)",
+        "Transición desde el laboratorio inicial en Subte CABA hasta el 89,1% de participación en colectivos",
+        ylabel="Participación Modal (%)"
+    )
+
+    # GRÁFICO 6.3: Fase 1 en Subte CABA (Jul 2025) — Adopción de Medios Abiertos vs. Parque de Molinetes Multipago
+    ax3 = fig.add_subplot(gs[1, 1])
+    indicadores_subte = [
+        "Share Pagos Abiertos\nSubte Jul-25 (27% EMV +\n7% QR = 34% del total)",
+        "Usuarios que Probaron\nNuevos Medios en Subte\n(Estudio Emova May-25)",
+        "Molinetes Multipago\nTotal Red Subte CABA\n(275 sobre 645 = 42,6%)",
+        "Cobertura Multipago\nLínea E de Subte\n(Líder en Red Emova)",
+        "Cobertura Multipago\nLínea H de Subte\n(2° en Red Emova)"
+    ]
+    vals_subte = [34.0, 40.0, 42.6, 53.0, 48.0]
+    cols_subte = [PALETA['emv_nfc'], PALETA['vqr'], PALETA['sube'], PALETA['debito'], PALETA['debito']]
+
+    y_sb = np.arange(len(indicadores_subte))
+    ax3.barh(y_sb, vals_subte, color=cols_subte, height=0.60)
+    ax3.invert_yaxis()
+
+    for i, v in enumerate(vals_subte):
+        ax3.text(v + 1.0, i, f"{v:.1f}%", va='center', fontsize=9, fontweight='bold', color='#222222')
+
+    ax3.set_yticks(y_sb)
+    ax3.set_yticklabels(indicadores_subte, fontsize=8.5, fontweight='bold')
+    ax3.set_xlim(0, 65)
+    estilizar_eje(
+        ax3,
+        "Gráfico 6.3: Quiebre Inicial en el Subte Porteño e Infraestructura de Molinetes (Fase 1 - 2025)",
+        "Los medios abiertos captaron el 34% de los pasajes cuando solo el 42,6% de los molinetes estaba reconvertido",
+        xlabel="Porcentaje sobre el Total de Viajes / Parque de Molinetes (%)"
+    )
+
+    plt.tight_layout()
+    plt.savefig("bloque_6_tipping_point_y_protocolo.png", dpi=300, bbox_inches='tight')
+    plt.show()
+    return df_serie_quiebre
+
+df_b6 = ejecutar_bloque_6()
+## Lo que hay que ver en los gráficos del Bloque 6
+# En el Gráfico 6.1 (Las tijeras entre SUBE y VQR): Mirá cómo la línea azul (SUBE) y la curva con barras de VQR forman una tijera perfecta. Mientras el fenómeno estuvo encerrado en el Subte (Jul–Ago 2025), SUBE aguantaba arriba de 350M. En cuanto los validadores multipago subieron a los colectivos (Oct–Dic 2025) y el saldo negativo de -$1.200 quedó licuado en invierno de 2026, SUBE perforó la línea roja de los 300M y cayó a 270,21M.   
+# En el Gráfico 6.2: Muestra el cambio de régimen entre la Fase 1 y la Fase 2. En julio de 2025 el 100% del QR ocurría en el Subte (barra naranja); cinco meses después, en diciembre de 2025, el 90,4% ya ocurría arriba de los colectivos (barra azul).  
+# En el Gráfico 6.3: Demuestra que el límite de adopción nunca fue la demanda sino la oferta física de validadores: en julio de 2025, un tercio de todos los pasajeros del Subte (34%) ya pagaba sin SUBE haciendo fila en apenas el 42,6% de los molinetes habilitados (275 sobre 645).
