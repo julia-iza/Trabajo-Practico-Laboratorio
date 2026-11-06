@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SUBE vs. Nuevos Medios de Pago en Argentina (2024–2026) | Estética Transporte AMBA</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            arg: '#74ACDF',       /* Celeste Bandera Argentina */
+            sol: '#F6B40E',       /* Dorado Sol de Mayo */
+            sube: '#0072CE',      /* Azul Institucional SUBE */
+            vqr: '#00B4D8',       /* Turquesa QR Interoperable */
+            emv: '#662D91',       /* Violeta Subte Línea E / NFC */
+            lineaA: '#00AEEF',    /* Subte Línea A - Celeste */
+            lineaB: '#EE1D23',    /* Subte Línea B - Rojo */
+            lineaC: '#0054A6',    /* Subte Línea C - Azul */
+            lineaD: '#008061',    /* Subte Línea D - Verde */
+            lineaE: '#662D91',    /* Subte Línea E - Violeta */
+            lineaH: '#FFD100',    /* Subte Línea H - Amarillo */
+            bgdark: '#081021',    /* Azul Profundo Estación */
+            carddark: '#0E1931',  /* Pizarra Subte */
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #081021;
+      background-image: 
+        radial-gradient(circle at 12% 18%, rgba(116, 172, 223, 0.10) 0%, transparent 40%),
+        radial-gradient(circle at 88% 82%, rgba(0, 114, 206, 0.12) 0%, transparent 45%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+      color: #F8FAFC;
+      overflow-x: hidden;
+    }
+
+    /* Cinta Bandera Argentina */
+    .arg-ribbon {
+      height: 5px;
+      background: linear-gradient(90deg, 
+        #74ACDF 0%, #74ACDF 38%, 
+        #FFFFFF 38%, #FFFFFF 48%, 
+        #F6B40E 48%, #F6B40E 52%, 
+        #FFFFFF 52%, #FFFFFF 62%, 
+        #74ACDF 62%, #74ACDF 100%
+      );
+    }
+
+    /* Estilo Cartelera Subte / Validador */
+    .glass-card {
+      background: rgba(14, 25, 49, 0.88);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(116, 172, 223, 0.22);
+      box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.7);
+    }
+
+    /* Cartel Luminoso LED de Colectivo AMBA */
+    .colectivo-led {
+      background: #050914;
+      border: 1px solid rgba(246, 180, 14, 0.45);
+      box-shadow: inset 0 0 12px rgba(246, 180, 14, 0.12);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Discos Oficiales de Líneas de Subte CABA */
+    .subte-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 9999px;
+      font-weight: 900;
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+      flex-shrink: 0;
+    }
+    .subte-badge-sm {
+      width: 19px;
+      height: 19px;
+      font-size: 10px;
+    }
+
+    /* Línea de Red Ferroviaria / Subte en el Header */
+    .transit-line-nav {
+      position: relative;
+    }
+    .transit-line-nav::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 16px;
+      right: 16px;
+      height: 3px;
+      background: linear-gradient(90deg, #00AEEF, #EE1D23, #008061, #FFD100);
+      transform: translateY(-50%);
+      z-index: 0;
+      opacity: 0.45;
+    }
+
+    .slide-container {
+      display: none;
+      animation: fadeSlide 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .slide-container.active {
+      display: block;
+    }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #081021; }
+    ::-webkit-scrollbar-thumb { background: #1E3A5F; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #74ACDF; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-arg selection:text-slate-950">
+
+  <!-- CINTA SUPERIOR BANDERA ARGENTINA -->
+  <div class="arg-ribbon w-full sticky top-0 z-50"></div>
+
+  <!-- BARRA DE NAVEGACIÓN ESTILO RED SUBTE / COLECTIVOS AMBA -->
+  <header class="sticky top-[5px] z-40 glass-card border-b border-arg/25 px-4 lg:px-8 py-2.5">
+    <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Identidad Visual Argentina: Colectivo + Subte + Líneas -->
+      <div class="flex items-center gap-3">
+        <!-- Tarjeta SUBE / Bandera Icono con SVG de Colectivo y Subte -->
+        <div class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-br from-sube via-[#0054A6] to-slate-900 border border-arg/50 shadow-lg">
+          <!-- SVG Colectivo Argentino -->
+          <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="14" rx="3" fill="#0072CE" stroke="#74ACDF"/>
+            <path d="M3 8h18M7 3v5M17 3v5" stroke="#FFFFFF" stroke-width="1.5"/>
+            <rect x="6" y="4.5" width="12" height="2" rx="0.5" fill="#F6B40E"/>
+            <circle cx="7.5" cy="14" r="1.3" fill="#FFD100"/>
+            <circle cx="16.5" cy="14" r="1.3" fill="#EE1D23"/>
+            <path d="M6 17v3M18 17v3" stroke="#74ACDF" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+          <span class="text-arg font-black text-xs">+</span>
+          <!-- SVG Subte CABA -->
+          <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="2" width="16" height="16" rx="4" fill="#1E293B" stroke="#FFD100"/>
+            <rect x="7" y="5" width="10" height="5" rx="1" fill="#00AEEF"/>
+            <circle cx="8.5" cy="14" r="1.2" fill="#FFD100"/>
+            <circle cx="15.5" cy="14" r="1.2" fill="#FFD100"/>
+            <path d="M4 21l3-3h10l3 3" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+
+        <div>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded bg-arg/20 text-arg border border-arg/40 font-bold">
+              🇦🇷 MOVILIDAD ARGENTINA • DECRETO 698/24 & COM. "A" 8206
+            </span>
+            <!-- Discos Oficiales Subte CABA -->
+            <div class="hidden sm:flex items-center gap-1 ml-1" title="Líneas de Subte CABA (Emova)">
+              <span class="subte-badge subte-badge-sm bg-lineaA text-white">A</span>
+              <span class="subte-badge subte-badge-sm bg-lineaB text-white">B</span>
+              <span class="subte-badge subte-badge-sm bg-lineaC text-white">C</span>
+              <span class="subte-badge subte-badge-sm bg-lineaD text-white">D</span>
+              <span class="subte-badge subte-badge-sm bg-lineaE text-white">E</span>
+              <span class="subte-badge subte-badge-sm bg-lineaH text-slate-950">H</span>
+            </div>
+          </div>
+          <h1 class="text-sm sm:text-base font-extrabold tracking-tight text-white mt-0.5">
+            SUBE vs. Nuevos Medios de Pago: Colectivos, Subtes y Trenes (2024–2026)
+          </h1>
+        </div>
+      </div>
+
+      <!-- Navegador de 4 Estaciones (Estilo Mapa de Subte) -->
+      <nav class="transit-line-nav flex items-center gap-1.5 sm:gap-2 bg-slate-950/90 p-1.5 rounded-2xl border border-arg/30" aria-label="Estaciones de la presentación">
+        <button onclick="goToSlide(1)" id="nav-btn-1" class="relative z-10 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-lineaA text-slate-950 shadow-md">
+          <span class="subte-badge subte-badge-sm bg-slate-950 text-lineaA border border-lineaA">1</span>
+          <span class="hidden md:inline">Fuentes & Medallion</span>
+        </button>
+        <button onclick="goToSlide(2)" id="nav-btn-2" class="relative z-10 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-slate-900 text-slate-300 hover:text-white border border-slate-700">
+          <span class="subte-badge subte-badge-sm bg-lineaB text-white">2</span>
+          <span class="hidden md:inline">Macro, Boletos & IPC</span>
+        </button>
+        <button onclick="goToSlide(3)" id="nav-btn-3" class="relative z-10 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-slate-900 text-slate-300 hover:text-white border border-slate-700">
+          <span class="subte-badge subte-badge-sm bg-lineaD text-white">3</span>
+          <span class="hidden md:inline">Molinete & Tijeras</span>
+        </button>
+        <button onclick="goToSlide(4)" id="nav-btn-4" class="relative z-10 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-slate-900 text-slate-300 hover:text-white border border-slate-700">
+          <span class="subte-badge subte-badge-sm bg-lineaH text-slate-950">4</span>
+          <span class="hidden md:inline">Cierre & Ecosistema</span>
+        </button>
+      </nav>
+
+      <!-- Controles de Avance y Cartelera LED -->
+      <div class="flex items-center gap-2">
+        <div class="hidden xl:flex items-center gap-2 px-3 py-1 rounded-lg colectivo-led text-[11px] text-sol">
+          <span class="w-2 h-2 rounded-full bg-sol animate-ping"></span>
+          <span>RAMAL ANÁLISIS • CORTE AGO–NOV 2026</span>
+        </div>
+        <button onclick="prevSlide()" class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-arg border border-arg/30 transition" title="Estación Anterior (←)">
+          <i data-lucide="chevron-left" class="w-4 h-4"></i>
+        </button>
+        <span id="slide-counter" class="font-mono text-xs font-bold px-2.5 py-1 rounded-lg colectivo-led text-sol">EST 1/4</span>
+        <button onclick="nextSlide()" class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-arg border border-arg/30 transition" title="Siguiente Estación (→)">
+          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+        <button onclick="toggleFullScreen()" class="p-2 rounded-xl bg-slate-900 hover:bg-arg/20 text-arg border border-arg/30 transition" title="Pantalla Completa">
+          <i data-lucide="maximize-2" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL DE LAS 4 ESTACIONES (DIAPOSITIVAS) -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto px-4 lg:px-8 py-5">
+
+    <!-- =====================================================================
+         ESTACIÓN 01 (SLIDE 1): PORTADA + BLOQUES 1 Y 2 (FUENTES, ASIMETRÍAS Y MEDALLION)
+         ===================================================================== -->
+    <section id="slide-1" class="slide-container active space-y-5">
+      
+      <!-- Banner Cabecera Estilo Terminal de Transporte AMBA -->
+      <div class="glass-card rounded-2xl p-5 border-l-8 border-l-arg relative overflow-hidden">
+        <!-- Ilustración decorativa de líneas de Subte de fondo -->
+        <div class="absolute right-0 top-0 bottom-0 w-1/3 opacity-10 pointer-events-none flex items-center justify-end pr-6">
+          <svg class="w-64 h-64" viewBox="0 0 200 200" fill="none">
+            <path d="M10 30 H120 L170 80 V180" stroke="#00AEEF" stroke-width="8" stroke-linecap="round"/>
+            <path d="M10 70 H90 L140 120 V190" stroke="#EE1D23" stroke-width="8" stroke-linecap="round"/>
+            <path d="M10 110 H70 L110 150 H190" stroke="#008061" stroke-width="8" stroke-linecap="round"/>
+            <path d="M40 10 V190" stroke="#FFD100" stroke-width="8" stroke-linecap="round"/>
+            <circle cx="40" cy="30" r="8" fill="#FFFFFF" stroke="#081021" stroke-width="3"/>
+            <circle cx="40" cy="70" r="8" fill="#FFFFFF" stroke="#081021" stroke-width="3"/>
+            <circle cx="40" cy="110" r="8" fill="#FFFFFF" stroke="#081021" stroke-width="3"/>
+          </svg>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center relative z-10">
+          <div class="lg:col-span-7 space-y-2.5">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-md colectivo-led text-xs text-sol font-bold">
+                🚌 COLECTIVOS AMBA & INTERIOR • 🚇 SUBTE LÍNEAS A-B-C-D-E-H • 🚆 TRENES
+              </span>
+              <span class="text-xs font-mono text-arg bg-arg/10 px-2 py-0.5 rounded border border-arg/30">
+                Fin de 15 años de exclusividad SUBE
+              </span>
+            </div>
+            <h2 class="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white leading-tight">
+              Apertura de Medios de Pago en el Transporte Argentino: <span class="text-transparent bg-clip-text bg-gradient-to-r from-arg via-white to-sol">De la Tarjeta SUBE al Molinete Multipago</span>
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-200 leading-relaxed">
+              El <strong>Decreto 698/2024</strong> y la <strong>Com. "A" 8206 del BCRA</strong> transformaron el validador del colectivo y el molinete del Subte en el campo de batalla diario entre la tarjeta <strong>SUBE</strong>, el estándar <strong>Viajes con QR (VQR)</strong> y las tarjetas/billeteras <strong>EMV Contactless (NFC)</strong>. Evaluar esta transición exige conciliar 4 fuentes oficiales y neutralizar 4 asimetrías estadísticas mediante una arquitectura <em>Medallion</em>.
+            </p>
+          </div>
+
+          <!-- Las 4 Fuentes Oficiales con Identidad de Líneas -->
+          <div class="lg:col-span-5 grid grid-cols-2 gap-2.5">
+            <div class="p-3 rounded-xl bg-slate-900/90 border-l-4 border-l-lineaA border border-slate-800">
+              <div class="flex items-center justify-between text-xs font-mono text-lineaA font-bold mb-1">
+                <span>1. BCRA (API v4.0 + IPM)</span>
+                <span class="subte-badge subte-badge-sm bg-lineaA text-white">A</span>
+              </div>
+              <p class="text-xs font-bold text-white">Pagos Minoristas (Ago 2026)</p>
+              <p class="text-[11px] text-slate-300 mt-0.5">De <strong>$9,8B</strong> en billeteras (PSPCP), el <strong>90,8% ($8,9B)</strong> rinde en FCI vs. 0% en SUBE.</p>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-900/90 border-l-4 border-l-lineaB border border-slate-800">
+              <div class="flex items-center justify-between text-xs font-mono text-rose-400 font-bold mb-1">
+                <span>2. INDEC (IPC Laspeyres)</span>
+                <span class="subte-badge subte-badge-sm bg-lineaB text-white">B</span>
+              </div>
+              <p class="text-xs font-bold text-white">Aperturas Regionales (Sep 26)</p>
+              <p class="text-[11px] text-slate-300 mt-0.5">Desagrega <em>Transporte Público</em> (+38,1% GBA) vs. <em>Adquisición Vehículos</em> (+6,9%).</p>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-900/90 border-l-4 border-l-lineaE border border-slate-800">
+              <div class="flex items-center justify-between text-xs font-mono text-purple-300 font-bold mb-1">
+                <span>3. PAYWAY / LYRA</span>
+                <span class="subte-badge subte-badge-sm bg-lineaE text-white">E</span>
+              </div>
+              <p class="text-xs font-bold text-white">Adquirencia EMV/NFC (2T 26)</p>
+              <p class="text-[11px] text-slate-300 mt-0.5"><strong>115M viajes</strong> contactless (60M Payway + 55M Lyra; 69,5% Débito / 30,5% Crédito).</p>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-900/90 border-l-4 border-l-lineaD border border-slate-800">
+              <div class="flex items-center justify-between text-xs font-mono text-emerald-400 font-bold mb-1">
+                <span>4. SEC. TRANSPORTE</span>
+                <span class="subte-badge subte-badge-sm bg-lineaD text-white">D</span>
+              </div>
+              <p class="text-xs font-bold text-white">Portal CKAN SUBE + CIMPRA</p>
+              <p class="text-[11px] text-slate-300 mt-0.5">Microdatos diarios 2024–2026 por modo (Colectivo, Subte, Tren) y jurisdicción.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grilla Principal Estación 1: Bloque 1 (Asimetrías) + Bloque 2 (Medallion) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <!-- BLOQUE 1: LAS 4 ASIMETRÍAS TÉCNICAS (CONMUTADOR CRUDO VS ARMONIZADO) -->
+        <div class="lg:col-span-7 glass-card rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <div class="flex items-center gap-2.5">
+                <span class="subte-badge bg-lineaA text-white">B1</span>
+                <div>
+                  <span class="text-[11px] font-mono uppercase tracking-wider text-arg font-bold">Bloque 1 • Relevamiento y Auditoría de Fuentes</span>
+                  <h3 class="text-lg font-extrabold text-white">Las 4 Asimetrías Técnicas al Cruzar Datos en Crudo</h3>
+                </div>
+              </div>
+
+              <!-- Conmutador Interactivo -->
+              <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-arg/40 text-xs">
+                <button onclick="setAsymmetryMode('both')" id="asym-btn-both" class="px-2.5 py-1 rounded-lg font-bold bg-arg text-slate-950 transition">Comparar Ambos</button>
+                <button onclick="setAsymmetryMode('raw')" id="asym-btn-raw" class="px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition">Lectura Cruda (Sesgo)</button>
+                <button onclick="setAsymmetryMode('clean')" id="asym-btn-clean" class="px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition">Armonizada (Silver)</button>
+              </div>
+            </div>
+
+            <!-- 4 Tarjetas de Asimetrías -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              
+              <!-- Asimetría 1 -->
+              <div class="p-3.5 rounded-xl bg-slate-900/95 border border-slate-800 hover:border-lineaA transition flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-lineaA/20 text-lineaA">1. DESFASE TEMPORAL BCRA</span>
+                    <span class="text-[11px] font-mono text-sol">Lag T vs. T-1 / T-2</span>
+                  </div>
+                  <p class="text-xs text-slate-300 mb-2">El Informe del BCRA (Ago-26) publica QR en <strong>T (Ago)</strong>, pero rezaga SUBE/TD/TC a <strong>T-1 (Jul)</strong> y Prepagas a <strong>T-2 (Jun)</strong>.</p>
+                </div>
+                <div class="space-y-1.5 text-xs font-mono">
+                  <div class="asym-raw p-2 rounded-lg bg-rose-950/50 border border-rose-700/50 text-rose-200">
+                    <span class="font-bold text-rose-400">❌ Crudo:</span> Mezcla VQR Ago (26,33M) con SUBE Jul (270,21M) y Prepagas Jun.
+                  </div>
+                  <div class="asym-clean p-2 rounded-lg bg-emerald-950/50 border border-emerald-700/50 text-emerald-200">
+                    <span class="font-bold text-emerald-400">✔ Corte Homogéneo Jul (T-1):</span> SUBE 270,21M ($193,68 mil M) vs. VQR Jul 24,40M ($31,72 mil M).
+                  </div>
+                </div>
+              </div>
+
+              <!-- Asimetría 2 -->
+              <div class="p-3.5 rounded-xl bg-slate-900/95 border border-slate-800 hover:border-lineaE transition flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-lineaE/30 text-purple-300">2. OCULTAMIENTO EMV / NFC</span>
+                    <span class="text-[11px] font-mono text-sol">Daily Batching ~2,2x</span>
+                  </div>
+                  <p class="text-xs text-slate-300 mb-2">Los molinetes y colectivos empaquetan los viajes contactless al cierre del día como un único cargo comercial.</p>
+                </div>
+                <div class="space-y-1.5 text-xs font-mono">
+                  <div class="asym-raw p-2 rounded-lg bg-rose-950/50 border border-rose-700/50 text-rose-200">
+                    <span class="font-bold text-rose-400">❌ Crudo BCRA:</span> 0 viajes EMV reportados por separado en transporte.
+                  </div>
+                  <div class="asym-clean p-2 rounded-lg bg-emerald-950/50 border border-emerald-700/50 text-emerald-200">
+                    <span class="font-bold text-emerald-400">✔ Real (115M viajes):</span> 60M Payway + 55M Lyra (69,5% TD / 30,5% TC; 30% NFC; ~52,3M cargos liquidados).
+                  </div>
+                </div>
+              </div>
+
+              <!-- Asimetría 3 -->
+              <div class="p-3.5 rounded-xl bg-slate-900/95 border border-slate-800 hover:border-lineaH transition flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-lineaH/20 text-lineaH">3. SESGO DE AUTOSELECCIÓN</span>
+                    <span class="text-[11px] font-mono text-sol">Brecha Bruta +92,9%</span>
+                  </div>
+                  <p class="text-xs text-slate-300 mb-2">Comparar el ticket promedio VQR contra SUBE sin separar subsidios sociales ni modos distorsiona el precio.</p>
+                </div>
+                <div class="space-y-1.5 text-xs font-mono">
+                  <div class="asym-raw p-2 rounded-lg bg-rose-950/50 border border-rose-700/50 text-rose-200">
+                    <span class="font-bold text-rose-400">❌ Crudo:</span> VQR ($1.383,01) parece 92,9% más caro que SUBE ($716,78).
+                  </div>
+                  <div class="asym-clean p-2 rounded-lg bg-emerald-950/50 border border-emerald-700/50 text-emerald-200">
+                    <span class="font-bold text-emerald-400">✔ Paridad Nominal (0%):</span> Igual tarifa plena registrada; SUBE promedia Tarifa Social (-55%), Red SUBE y Trenes.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Asimetría 4 -->
+              <div class="p-3.5 rounded-xl bg-slate-900/95 border border-slate-800 hover:border-lineaB transition flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-lineaB/20 text-rose-300">4. DEFLACTOR ÚNICO (IPC)</span>
+                    <span class="text-[11px] font-mono text-sol">Ilusión Monetaria</span>
+                  </div>
+                  <p class="text-xs text-slate-300 mb-2">Deflactar recaudación de boletos con el IPC Nivel General oculta el shock tarifario de colectivos y subtes.</p>
+                </div>
+                <div class="space-y-1.5 text-xs font-mono">
+                  <div class="asym-raw p-2 rounded-lg bg-rose-950/50 border border-rose-700/50 text-rose-200">
+                    <span class="font-bold text-rose-400">❌ Crudo BCRA:</span> Caída real aparente de SUBE de solo -1,7% i.a. en monto.
+                  </div>
+                  <div class="asym-clean p-2 rounded-lg bg-emerald-950/50 border border-emerald-700/50 text-emerald-200">
+                    <span class="font-bold text-emerald-400">✔ Deflactor Transporte Público:</span> -22,0% caída física (de 351,2M a 270,21M) y -15,27% en gasto real ajustado.
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Cartelera Inferior: Liquidez Remunerada FCI vs SUBE -->
+          <div class="mt-4 p-3 rounded-xl colectivo-led flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 text-xs text-slate-200">
+              <span class="px-2 py-0.5 rounded bg-sol text-slate-950 font-extrabold">FONDEO QR</span>
+              <span><strong>BCRA Ago-26:</strong> 560,8M de Pagos con Transferencia (PCT). El <strong>90,8% ($8,9B de $9,8B)</strong> en billeteras rinde interés diario en FCI vs. <strong>0% TNA</strong> de saldo inmovilizado en plástico SUBE.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- BLOQUE 2: ARQUITECTURA MEDALLION (BRONZE -> SILVER -> GOLD) -->
+        <div class="lg:col-span-5 glass-card rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2.5 mb-3">
+              <span class="subte-badge bg-lineaD text-white">B2</span>
+              <div>
+                <span class="text-[11px] font-mono uppercase tracking-wider text-emerald-400 font-bold">Bloque 2 • Ingeniería de Datos & Armonización</span>
+                <h3 class="text-lg font-extrabold text-white">Arquitectura Medallion y Rescate del Subte CABA</h3>
+              </div>
+            </div>
+
+            <!-- Pestañas Interactivas Medallion -->
+            <div class="grid grid-cols-3 gap-2 mb-4">
+              <button onclick="selectMedallion('bronze')" id="med-tab-bronze" class="p-2.5 rounded-xl border text-left transition bg-slate-900/70 border-slate-800 hover:border-amber-500">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono font-bold text-amber-500">01 • BRONZE</span>
+                  <i data-lucide="database" class="w-3.5 h-3.5 text-amber-500"></i>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Ingesta Cruda CSV/API</p>
+              </button>
+              <button onclick="selectMedallion('silver')" id="med-tab-silver" class="p-2.5 rounded-xl border text-left transition bg-slate-800 border-arg shadow-md">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono font-bold text-arg">02 • SILVER ★</span>
+                  <i data-lucide="wrench" class="w-3.5 h-3.5 text-arg"></i>
+                </div>
+                <p class="text-[11px] text-white mt-1 font-semibold">4 Reglas Limpieza</p>
+              </button>
+              <button onclick="selectMedallion('gold')" id="med-tab-gold" class="p-2.5 rounded-xl border text-left transition bg-slate-900/70 border-slate-800 hover:border-sol">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono font-bold text-sol">03 • GOLD</span>
+                  <i data-lucide="award" class="w-3.5 h-3.5 text-sol"></i>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Series Homogéneas</p>
+              </button>
+            </div>
+
+            <!-- Contenedor Dinámico Medallion -->
+            <div id="medallion-content" class="space-y-2.5"></div>
+          </div>
+
+          <!-- Bloque SQL Auditable -->
+          <div class="mt-4 p-3 rounded-xl bg-slate-950 border border-arg/30 font-mono text-[11px] text-slate-300 space-y-1">
+            <div class="flex items-center justify-between text-arg border-b border-slate-800 pb-1 mb-1">
+              <span>pipeline_silver_subte_amba.sql</span>
+              <span class="text-emerald-400 font-bold">● 19,7M viajes Subte recuperados</span>
+            </div>
+            <p><span class="text-purple-400">UPDATE</span> sube_raw <span class="text-purple-400">SET</span> provincia = <span class="text-sol">'CABA'</span>, amba = <span class="text-sol">'SI'</span> <span class="text-purple-400">WHERE</span> tipo_transporte = <span class="text-sol">'subte'</span>;</p>
+            <p><span class="text-purple-400">SELECT</span> * <span class="text-purple-400">FROM</span> usuarios_dia <span class="text-purple-400">WHERE</span> tipo_transporte != <span class="text-sol">'total'</span>; <span class="text-slate-500">-- 4,71M reales vs 5,47M</span></p>
+            <p><span class="text-purple-400">SET</span> methodological_break_tc = <span class="text-emerald-400">TRUE</span>; <span class="text-slate-500">-- Nota 11 BCRA Jul-26 (217,81M consol.)</span></p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         ESTACIÓN 02 (SLIDE 2): BLOQUES 3 Y 4 (MACRO, BOLETOS AMBA, WATERFALL E IPC)
+         ===================================================================== -->
+    <section id="slide-2" class="slide-container space-y-5">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <!-- BLOQUE 3 Y 4 (PARTE A): GRÁFICO INTERACTIVO TRIPLE (SHARE / WATERFALL / CUADRO TARIFARIO AMBA) -->
+        <div class="lg:col-span-7 glass-card rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div class="flex items-center gap-2.5">
+                <span class="subte-badge bg-lineaB text-white">B3</span>
+                <div>
+                  <span class="text-[11px] font-mono uppercase tracking-wider text-arg font-bold">Bloques 3 y 4 • Macroeconomía y Tarifas del Transporte AMBA</span>
+                  <h3 class="text-base sm:text-lg font-extrabold text-white" id="macro-chart-title">
+                    Frecuencia Física (797,74M op.) vs. Valor Monetario ($21,80B)
+                  </h3>
+                </div>
+              </div>
+
+              <!-- Conmutador de 3 Vistas -->
+              <div class="inline-flex flex-wrap rounded-xl bg-slate-950 p-1 border border-arg/40 text-xs gap-1">
+                <button onclick="switchMacroChart('share')" id="macro-btn-share" class="px-2.5 py-1 rounded-lg font-bold bg-sube text-white transition">
+                  1. Frecuencia vs. Valor
+                </button>
+                <button onclick="switchMacroChart('waterfall')" id="macro-btn-waterfall" class="px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition">
+                  2. Puente Ticket ($717 → $1.383)
+                </button>
+                <button onclick="switchMacroChart('tarifas')" id="macro-btn-tarifas" class="px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition">
+                  3. Boletos AMBA (Oct-Nov 26)
+                </button>
+              </div>
+            </div>
+
+            <p id="macro-chart-subtitle" class="text-xs text-slate-300 mb-3">
+              <strong>Corte Homogéneo Julio 2026:</strong> SUBE tracciona el <strong>33,87%</strong> de todas las transacciones cotidianas (270,21M), pero representa apenas el <strong>0,89%</strong> del dinero ($193,68 mil M). Tarjeta de Crédito concentra el <strong>46,00%</strong> del monto ($10,03B; 48,1% en E-commerce).
+            </p>
+
+            <!-- Contenedor del Gráfico Chart.js -->
+            <div class="relative h-[260px] w-full bg-slate-950/70 rounded-xl p-3 border border-slate-800">
+              <canvas id="macroChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Pirámide de Tickets y Desplome de Cajeros ATM -->
+          <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div class="p-2.5 rounded-xl bg-slate-900/95 border-l-4 border-l-sube border border-slate-800">
+              <span class="text-[10px] font-mono uppercase text-arg font-bold block">Micro-Pagos (Molinete)</span>
+              <p class="text-xs font-extrabold text-white mt-0.5">$717 SUBE • $1.383 VQR</p>
+              <p class="text-[11px] text-slate-400">36,93% de las op. del país</p>
+            </div>
+            <div class="p-2.5 rounded-xl bg-slate-900/95 border-l-4 border-l-lineaD border border-slate-800">
+              <span class="text-[10px] font-mono uppercase text-emerald-400 font-bold block">Consumo Diario</span>
+              <p class="text-xs font-extrabold text-white mt-0.5">$25.200 PCT • $32.933 TD</p>
+              <p class="text-[11px] text-slate-400">Prepagas: $17.854 prom.</p>
+            </div>
+            <div class="p-2.5 rounded-xl bg-slate-900/95 border-l-4 border-l-lineaH border border-slate-800">
+              <span class="text-[10px] font-mono uppercase text-sol font-bold block">Crédito & Financiación</span>
+              <p class="text-xs font-extrabold text-white mt-0.5">$62.945 TC • $178.239 Cuotas</p>
+              <p class="text-[11px] text-slate-400">41,46% en 1 a 3 cuotas</p>
+            </div>
+            <div class="p-2.5 rounded-xl bg-rose-950/40 border-l-4 border-l-lineaB border border-rose-800/50">
+              <span class="text-[10px] font-mono uppercase text-rose-300 font-bold block">Retiros Efectivo (ATM)</span>
+              <p class="text-xs font-extrabold text-rose-300 mt-0.5">-28,4% BCRA | -43,73% Payway</p>
+              <p class="text-[11px] text-slate-300">Desplazado por QR y NFC</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- BLOQUE 4 (PARTE B): LA TRAMPA DEL IPC EN EL TRANSPORTE PÚBLICO -->
+        <div class="lg:col-span-5 glass-card rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2.5 mb-2">
+              <span class="subte-badge bg-lineaC text-white">B4</span>
+              <div>
+                <span class="text-[11px] font-mono uppercase tracking-wider text-rose-400 font-bold">Bloque 4 • La Trampa del Deflactor Único (INDEC)</span>
+                <h3 class="text-base sm:text-lg font-extrabold text-white">
+                  Colectivo y Subte (+38,1%) vs. Compra de Autos (+6,9%)
+                </h3>
+              </div>
+            </div>
+
+            <p class="text-xs text-slate-300 mb-3">
+              En los primeros 9 meses de 2026 (Dic 25 – Sep 26), la división <strong>"Transporte" en GBA (+23,7%)</strong> dio casi igual al <strong>IPC Nivel General (+23,6%)</strong> porque promedia la compra de 0km/usados (<strong>+6,9%</strong>) con el boleto urbano. Al aislar <strong>Transporte Público</strong>, el boleto acumula entre <strong>+38,1% (GBA) y +43,2% (Cuyo)</strong>.
+            </p>
+
+            <!-- Gráfico Horizontal IPC -->
+            <div class="relative h-[225px] w-full bg-slate-950/70 rounded-xl p-3 border border-slate-800">
+              <canvas id="ipcChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Tarjetas de Impacto Tarifario AMBA -->
+          <div class="mt-4 space-y-2.5">
+            <div class="grid grid-cols-2 gap-2.5">
+              <div class="p-3 rounded-xl bg-slate-900/95 border border-slate-800">
+                <div class="flex items-center justify-between text-xs font-mono text-emerald-400 font-bold">
+                  <span>🚗 Adquisición Vehículos</span>
+                  <span>+6,9% GBA</span>
+                </div>
+                <p class="text-[11px] text-slate-300 mt-1">Ancla artificialmente el índice agregado de la división Transporte.</p>
+              </div>
+              <div class="p-3 rounded-xl bg-rose-950/40 border border-lineaB/50">
+                <div class="flex items-center justify-between text-xs font-mono text-rose-300 font-bold">
+                  <span>🚌🚇 Transporte Público</span>
+                  <span>+38,1% a +43,2%</span>
+                </div>
+                <p class="text-[11px] text-slate-200 mt-1">14,5 a 19,6 pp por encima de la inflación general en todas las regiones.</p>
+              </div>
+            </div>
+
+            <div class="p-2.5 rounded-xl colectivo-led text-[11px] text-slate-200 flex items-center justify-between">
+              <span><strong>Castigo SUBE Sin Registrar (Nov-26):</strong> Colectivo PBA &gt;27km llega a <strong>$4.285,62</strong> y Subte CABA a <strong>$2.999,60</strong>, expulsando al usuario no nominalizado hacia QR/NFC.</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         ESTACIÓN 03 (SLIDE 3): BLOQUES 5 Y 6 (MOLINETE, CASHBACKS Y LAS TIJERAS)
+         ===================================================================== -->
+    <section id="slide-3" class="slide-container space-y-5">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <!-- BLOQUE 5: VALIDADOR SUBE (-$1.200) Y SIMULADOR DE 40 VIAJES EN SUBTE -->
+        <div class="lg:col-span-6 glass-card rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <div class="flex items-center gap-2.5">
+                <span class="subte-badge bg-lineaE text-white">B5</span>
+                <div>
+                  <span class="text-[11px] font-mono uppercase tracking-wider text-purple-300 font-bold">Bloque 5 • Economía del Comportamiento en el Molinete</span>
+                  <h3 class="text-base sm:text-lg font-extrabold text-white">
+                    Muerte del Saldo Negativo (-$1.200) y Guerra de Cashbacks
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pantalla Validador SUBE: Licuación del Saldo de Emergencia (-$1.200) -->
+            <div class="p-3 rounded-xl colectivo-led mb-3.5">
+              <div class="flex items-center justify-between border-b border-sol/30 pb-1.5 mb-2">
+                <span class="text-xs font-bold text-sol flex items-center gap-1.5">
+                  <i data-lucide="cpu" class="w-4 h-4"></i>
+                  DISPLAY VALIDADOR SUBE • SALDO DE EMERGENCIA CONGELADO: -$1.200,00
+                </span>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-rose-600 text-white font-bold">SALDO INSUFICIENTE</span>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                <div class="p-1.5 rounded bg-emerald-950/60 border border-emerald-600/40 text-emerald-200">
+                  <span class="block text-[10px] text-emerald-400">🚌 CABA 0-3 km</span>
+                  <strong>$955,00</strong> (Pasa ✔)
+                </div>
+                <div class="p-1.5 rounded bg-rose-950/70 border border-rose-600/50 text-rose-200">
+                  <span class="block text-[10px] text-rose-400">🚌 PBA 0-3 km (Nov)</span>
+                  <strong>$1.263,69</strong> (Rebota ✖)
+                </div>
+                <div class="p-1.5 rounded bg-rose-950/70 border border-rose-600/50 text-rose-200">
+                  <span class="block text-[10px] text-rose-400">🚇 Subte A-H (Oct/Nov)</span>
+                  <strong>$1.817 / $1.887</strong> (✖)
+                </div>
+                <div class="p-1.5 rounded bg-rose-950/70 border border-rose-600/50 text-rose-200">
+                  <span class="block text-[10px] text-rose-400">🚌 PBA &gt;27 km</span>
+                  <strong>$2.142,81</strong> (Faltan $943)
+                </div>
+              </div>
+            </div>
+
+            <!-- Botonera del Simulador de 40 Viajes en Subte CABA ($72.680 Plena Oct-26) -->
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-bold text-arg">Simulador: 40 Viajes Mensuales en Subte CABA (Oct-26 = $72.680 Plena):</span>
+              <span class="text-[11px] font-mono text-slate-400">Click para simular</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-3.5">
+              <button onclick="selectRiderProfile(1)" id="prof-btn-1" class="p-2 rounded-xl border text-left transition bg-slate-900 border-slate-800 hover:border-slate-600">
+                <span class="text-[10px] font-mono text-rose-400 font-bold block">Perfil 01</span>
+                <span class="text-xs font-bold text-white leading-tight block mt-0.5">SUBE S/Reg.</span>
+              </button>
+              <button onclick="selectRiderProfile(2)" id="prof-btn-2" class="p-2 rounded-xl border text-left transition bg-slate-900 border-slate-800 hover:border-slate-600">
+                <span class="text-[10px] font-mono text-arg font-bold block">Perfil 02</span>
+                <span class="text-xs font-bold text-white leading-tight block mt-0.5">SUBE Reg.</span>
+              </button>
+              <button onclick="selectRiderProfile(3)" id="prof-btn-3" class="p-2 rounded-xl border text-left transition bg-slate-900 border-slate-800 hover:border-slate-600">
+                <span class="text-[10px] font-mono text-emerald-400 font-bold block">Perfil 03</span>
+                <span class="text-xs font-bold text-white leading-tight block mt-0.5">Tarifa Social</span>
+              </button>
+              <button onclick="selectRiderProfile(4)" id="prof-btn-4" class="p-2 rounded-xl border text-left transition bg-slate-900 border-slate-800 hover:border-slate-600">
+                <span class="text-[10px] font-mono text-purple-300 font-bold block">Perfil 04</span>
+                <span class="text-xs font-bold text-white leading-tight block mt-0.5">1 Promo NFC</span>
+              </button>
+              <button onclick="selectRiderProfile(5)" id="prof-btn-5" class="p-2 rounded-xl border text-left transition bg-slate-800 border-arg shadow-md">
+                <span class="text-[10px] font-mono text-sol font-bold block">Perfil 05 ★</span>
+                <span class="text-xs font-bold text-white leading-tight block mt-0.5">Multi-Homing</span>
+              </button>
+            </div>
+
+            <!-- Salida Dinámica del Simulador -->
+            <div id="simulator-output" class="p-3.5 rounded-xl bg-slate-950/90 border border-arg/30 space-y-2.5"></div>
+          </div>
+
+          <!-- Pool de Reintegros Acumulables (> $150.000/mes) -->
+          <div class="mt-3 p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+            <div class="flex items-center justify-between text-xs mb-1">
+              <span class="font-bold text-white">Pool de Topes Mensuales Acumulables (Promo Stacking):</span>
+              <span class="font-mono text-sol font-extrabold">&gt;$150.000/mes</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5 text-[10px] font-mono">
+              <span class="px-2 py-0.5 rounded bg-slate-950 text-orange-300 border border-orange-500/40">Naranja X: $30.000</span>
+              <span class="px-2 py-0.5 rounded bg-slate-950 text-arg border border-arg/40">BNA+: $27.000</span>
+              <span class="px-2 py-0.5 rounded bg-slate-950 text-purple-300 border border-purple-500/40">BBVA/MC: $25.000</span>
+              <span class="px-2 py-0.5 rounded bg-slate-950 text-rose-300 border border-rose-500/40">Santander: $16.000</span>
+              <span class="px-2 py-0.5 rounded bg-slate-950 text-cyan-300 border border-cyan-500/40">MP / Ualá / Galicia: $15.000 c/u</span>
+              <span class="px-2 py-0.5 rounded bg-slate-950 text-emerald-300 border border-emerald-500/40">Cuenta DNI: $10.000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- BLOQUE 6: EL PUNTO DE QUIEBRE ("LAS TIJERAS") Y DESEMBARCO EN COLECTIVOS Y SUBTES -->
+        <div class="lg:col-span-6 glass-card rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div class="flex items-center gap-2.5">
+                <span class="subte-badge bg-lineaH text-slate-950">B6</span>
+                <div>
+                  <span class="text-[11px] font-mono uppercase tracking-wider text-sol font-bold">Bloque 6 • El Punto de Quiebre (Jul 2025 – Ago 2026)</span>
+                  <h3 class="text-base sm:text-lg font-extrabold text-white">
+                    "Las Tijeras": SUBE Perfora los 300M vs. Salto VQR (+464,3%)
+                  </h3>
+                </div>
+              </div>
+              <span class="text-xs font-mono px-2.5 py-1 rounded-lg colectivo-led text-sol font-bold">
+                🚌 89,1% VQR en Colectivos
+              </span>
+            </div>
+
+            <p class="text-xs text-slate-300 mb-3">
+              El fenómeno nació en el Subte porteño (100% de VQR en jul-25), pero al activarse los validadores en colectivos del AMBA e interior, la matriz se invirtió: en <strong>agosto 2026 (26,33M viajes VQR)</strong> el <strong>89,1% ocurrió en colectivos (23,45M)</strong> y el <strong>10,9% en Subte (2,88M)</strong>, mientras SUBE cayó a <strong>270,21M (-22,0% i.a.)</strong>.
+            </p>
+
+            <!-- Gráfico de Doble Eje "Las Tijeras" -->
+            <div class="relative h-[240px] w-full bg-slate-950/70 rounded-xl p-3 border border-slate-800">
+              <canvas id="scissorsChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Cobertura de Molinetes por Línea de Subte (Emova) e Inversión Modal -->
+          <div class="mt-4 space-y-2.5">
+            <div class="p-3 rounded-xl bg-slate-900/95 border border-arg/30">
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <span class="text-xs font-extrabold text-white flex items-center gap-1.5">
+                  🚇 Red de Subte CABA (Emova): 34% Share Multipago con 42,6% de Molinetes (275/645)
+                </span>
+                <span class="text-[11px] font-mono text-arg">115M viajes EMV acum.</span>
+              </div>
+              <!-- Barras de Líneas de Subte -->
+              <div class="grid grid-cols-2 sm:grid-cols-6 gap-2 text-center">
+                <div class="p-1.5 rounded-lg bg-slate-950 border border-lineaE/60">
+                  <span class="subte-badge subte-badge-sm bg-lineaE text-white mx-auto mb-1">E</span>
+                  <p class="text-xs font-extrabold text-white">53% Líder</p>
+                  <p class="text-[10px] text-purple-300">Retiro–Verr.</p>
+                </div>
+                <div class="p-1.5 rounded-lg bg-slate-950 border border-lineaH/60">
+                  <span class="subte-badge subte-badge-sm bg-lineaH text-slate-950 mx-auto mb-1">H</span>
+                  <p class="text-xs font-extrabold text-white">48% (2°)</p>
+                  <p class="text-[10px] text-sol">Hosp.–Fac.</p>
+                </div>
+                <div class="p-1.5 rounded-lg bg-slate-950 border border-lineaD/40">
+                  <span class="subte-badge subte-badge-sm bg-lineaD text-white mx-auto mb-1">D</span>
+                  <p class="text-xs font-bold text-slate-200">Alta Adop.</p>
+                  <p class="text-[10px] text-emerald-400">Cong.–Cat.</p>
+                </div>
+                <div class="p-1.5 rounded-lg bg-slate-950 border border-lineaB/40">
+                  <span class="subte-badge subte-badge-sm bg-lineaB text-white mx-auto mb-1">B</span>
+                  <p class="text-xs font-bold text-slate-200">Troncal</p>
+                  <p class="text-[10px] text-rose-400">Rosas–Alem</p>
+                </div>
+                <div class="p-1.5 rounded-lg bg-slate-950 border border-lineaA/40">
+                  <span class="subte-badge subte-badge-sm bg-lineaA text-white mx-auto mb-1">A</span>
+                  <p class="text-xs font-bold text-slate-200">Pionera</p>
+                  <p class="text-[10px] text-lineaA">San Ped.–Pza</p>
+                </div>
+                <div class="p-1.5 rounded-lg bg-slate-950 border border-lineaC/40">
+                  <span class="subte-badge subte-badge-sm bg-lineaC text-white mx-auto mb-1">C</span>
+                  <p class="text-xs font-bold text-slate-200">Trasbordo</p>
+                  <p class="text-[10px] text-sky-400">Ret.–Const.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         ESTACIÓN 04 (SLIDE 4): CONCLUSIONES, PROTOCOLO Y MAPA DEL ECOSISTEMA
+         ===================================================================== -->
+    <section id="slide-4" class="slide-container space-y-5">
+      
+      <!-- Fila Superior: 3 Conclusiones Estructurales -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="glass-card rounded-2xl p-4 border-t-4 border-t-sube">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-mono font-bold text-arg">CONCLUSIÓN 01 • BIFURCACIÓN</span>
+            <span class="subte-badge subte-badge-sm bg-sube text-white">1</span>
+          </div>
+          <h4 class="text-sm font-extrabold text-white mb-1">Dos Mercados Especializados por Incentivos</h4>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            El transporte argentino no reemplazó un monopolio por otro: <strong>SUBE</strong> quedó como la red de contención de la <strong>Tarifa Social (-55%), Red SUBE y Trenes</strong>, mientras que <strong>VQR (26,33M) y EMV/NFC (115M)</strong> capturaron al pasajero de tarifa plena en colectivos y subtes atraído por reintegros privados.
+          </p>
+        </div>
+
+        <div class="glass-card rounded-2xl p-4 border-t-4 border-t-sol">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-mono font-bold text-sol">CONCLUSIÓN 02 • FIN DEL EFECTIVO</span>
+            <span class="subte-badge subte-badge-sm bg-lineaH text-slate-950">2</span>
+          </div>
+          <h4 class="text-sm font-extrabold text-white mb-1">El Validador como Caballo de Troya</h4>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Aunque el transporte mueve menos del 1,1% del dinero, aporta el <strong>36,9% de la frecuencia transaccional</strong>. Con <strong>$8,9B en FCI remunerados</strong>, las billeteras y bancos subsidian el boleto como costo de adquisición (CAC), hundiendo las extracciones en cajeros ATM (-28,4% a -43,7%).
+          </p>
+        </div>
+
+        <div class="glass-card rounded-2xl p-4 border-t-4 border-t-lineaD">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-mono font-bold text-emerald-400">CONCLUSIÓN 03 • INGENIERÍA</span>
+            <span class="subte-badge subte-badge-sm bg-lineaD text-white">3</span>
+          </div>
+          <h4 class="text-sm font-extrabold text-white mb-1">Rigor Medallion ante Datos Públicos</h4>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Sin alinear el rezago $T-1$, imputar los nulos de Subte (+19,7M viajes), filtrar la fila <code>'total'</code>, consolidar la Nota 11 y deflactar con <strong>IPC Transporte Público (+38,1%)</strong>, cualquier cruce entre BCRA, INDEC y Transporte conduce a conclusiones erróneas.
+          </p>
+        </div>
+      </div>
+
+      <!-- Fila Inferior: Protocolo de 5 Reglas + Radiografía del Ecosistema Bifurcado y Modelo Gold -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <!-- PROTOCOLO OPERATIVO DE 5 REGLAS -->
+        <div class="lg:col-span-5 glass-card rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="subte-badge bg-lineaD text-white">✔</span>
+                <div>
+                  <span class="text-[11px] font-mono uppercase tracking-wider text-emerald-400 font-bold">Gobernanza de Datos</span>
+                  <h3 class="text-base font-extrabold text-white">Protocolo Auditable de 5 Reglas de Oro</h3>
+                </div>
+              </div>
+              <span id="protocol-progress" class="text-xs font-mono px-2.5 py-1 rounded colectivo-led text-sol font-bold">5/5 Activas</span>
+            </div>
+
+            <div class="space-y-2">
+              <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-900/95 border border-slate-800 cursor-pointer hover:border-arg transition">
+                <input type="checkbox" checked onchange="updateProtocolCount()" class="protocol-check mt-1 accent-arg w-4 h-4 rounded" />
+                <div class="text-xs">
+                  <span class="font-bold text-white block">1. Alineación Temporal a T-1 (Julio 2026):</span>
+                  <span class="text-slate-300">Cruzar participación en Jul-26 (SUBE 270,21M vs. VQR 24,40M), aislando el rezago de Prepagas (T-2).</span>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-900/95 border border-slate-800 cursor-pointer hover:border-arg transition">
+                <input type="checkbox" checked onchange="updateProtocolCount()" class="protocol-check mt-1 accent-arg w-4 h-4 rounded" />
+                <div class="text-xs">
+                  <span class="font-bold text-white block">2. Rescate del Subte (NULLs) y Filtro 'total':</span>
+                  <span class="text-slate-300">Imputar <code>CABA/AMBA</code> en <code>tipo_transporte == 'subte'</code> (+19,7M viajes) y filtrar <code>!= 'total'</code> (4,71M tarjetas reales).</span>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-900/95 border border-slate-800 cursor-pointer hover:border-arg transition">
+                <input type="checkbox" checked onchange="updateProtocolCount()" class="protocol-check mt-1 accent-arg w-4 h-4 rounded" />
+                <div class="text-xs">
+                  <span class="font-bold text-white block">3. Consolidación por Nota 11 BCRA (Jul-26):</span>
+                  <span class="text-slate-300">Unificar Crédito (159,31M) + Prepagas (58,50M) = 217,81M para neutralizar la reclasificación de emisores.</span>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-900/95 border border-slate-800 cursor-pointer hover:border-arg transition">
+                <input type="checkbox" checked onchange="updateProtocolCount()" class="protocol-check mt-1 accent-arg w-4 h-4 rounded" />
+                <div class="text-xs">
+                  <span class="font-bold text-white block">4. Desagregación Daily Batching EMV (~2,2x):</span>
+                  <span class="text-slate-300">Incorporar los 115M de viajes contactless (60M Payway + 55M Lyra) detrás de los ~52,3M de cargos diarios.</span>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-900/95 border border-slate-800 cursor-pointer hover:border-arg transition">
+                <input type="checkbox" checked onchange="updateProtocolCount()" class="protocol-check mt-1 accent-arg w-4 h-4 rounded" />
+                <div class="text-xs">
+                  <span class="font-bold text-white block">5. Deflación Laspeyres con IPC Transporte Público:</span>
+                  <span class="text-slate-300">Ajustar montos con la apertura Transporte Público (+38,1% GBA) y no con el IPC General (+23,6%).</span>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- RADIOGRAFÍA DE LA BIFURCACIÓN Y ESQUEMA ESTRELLA CAPA GOLD -->
+        <div class="lg:col-span-7 glass-card rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div class="flex items-center gap-2">
+                <span class="subte-badge bg-lineaA text-white">★</span>
+                <div>
+                  <span class="text-[11px] font-mono uppercase tracking-wider text-arg font-bold">Síntesis Estructural del Mercado (2024–2026)</span>
+                  <h3 class="text-base font-extrabold text-white">Bifurcación Operativa y Esquema Estrella (Capa Gold)</h3>
+                </div>
+              </div>
+
+              <!-- Conmutador de Vista Ecosistema vs Esquema Gold -->
+              <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-arg/40 text-xs">
+                <button onclick="switchClosingTab('bifurcacion')" id="close-btn-bifurcacion" class="px-2.5 py-1 rounded-lg font-bold bg-arg text-slate-950 transition">1. Bucle Cerrado vs. Abierto</button>
+                <button onclick="switchClosingTab('star')" id="close-btn-star" class="px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition">2. Modelo Estrella (Gold)</button>
+              </div>
+            </div>
+
+            <!-- VISTA 1: BUCLE CERRADO (SUBE) VS BUCLE ABIERTO (VQR + EMV/NFC) -->
+            <div id="closing-view-bifurcacion" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- Columna Red SUBE -->
+                <div class="p-3.5 rounded-xl bg-slate-900/95 border-t-4 border-t-sube border border-slate-800 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-extrabold text-arg uppercase font-mono">Bucle Cerrado • Red SUBE</span>
+                    <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-sube/20 text-arg font-bold">270,21M viajes/mes</span>
+                  </div>
+                  <p class="text-[11px] text-slate-300">Especializado en la contención tarifaria pública y el transporte multimodal subsidiado.</p>
+                  <ul class="space-y-1.5 text-xs text-slate-200 pt-1">
+                    <li class="flex items-center justify-between border-b border-slate-800/80 pb-1">
+                      <span class="text-slate-400">Núcleo de Usuarios:</span>
+                      <span class="font-bold text-emerald-400">Tarifa Social (-55%) & Red SUBE</span>
+                    </li>
+                    <li class="flex items-center justify-between border-b border-slate-800/80 pb-1">
+                      <span class="text-slate-400">Dominio Modal:</span>
+                      <span class="font-bold text-white">100% Trenes + Tramos c/ Trasbordo</span>
+                    </li>
+                    <li class="flex items-center justify-between border-b border-slate-800/80 pb-1">
+                      <span class="text-slate-400">Ticket Promedio (Jul-26):</span>
+                      <span class="font-mono font-bold text-arg">$716,78 ARS</span>
+                    </li>
+                    <li class="flex items-center justify-between">
+                      <span class="text-slate-400">Fricción Crítica:</span>
+                      <span class="font-bold text-rose-400">TNA 0% + Tope -$1.200 Licuado</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <!-- Columna Medios Abiertos -->
+                <div class="p-3.5 rounded-xl bg-slate-900/95 border-t-4 border-t-sol border border-slate-800 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-extrabold text-sol uppercase font-mono">Bucle Abierto • VQR + EMV/NFC</span>
+                    <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-sol/20 text-sol font-bold">26,3M QR + 115M EMV</span>
+                  </div>
+                  <p class="text-[11px] text-slate-300">Impulsado por liquidez remunerada en FCI, cero recarga previa y subsidios cruzados privados.</p>
+                  <ul class="space-y-1.5 text-xs text-slate-200 pt-1">
+                    <li class="flex items-center justify-between border-b border-slate-800/80 pb-1">
+                      <span class="text-slate-400">Núcleo de Usuarios:</span>
+                      <span class="font-bold text-sol">Tarifa Plena & Ex-SUBE S/Reg.</span>
+                    </li>
+                    <li class="flex items-center justify-between border-b border-slate-800/80 pb-1">
+                      <span class="text-slate-400">Dominio Modal VQR:</span>
+                      <span class="font-bold text-white">89,1% Colectivos | 10,9% Subte</span>
+                    </li>
+                    <li class="flex items-center justify-between border-b border-slate-800/80 pb-1">
+                      <span class="text-slate-400">Ticket Promedio VQR:</span>
+                      <span class="font-mono font-bold text-sol">$1.383,01 ARS (+92,9% mix)</span>
+                    </li>
+                    <li class="flex items-center justify-between">
+                      <span class="text-slate-400">Ventaja Competitiva:</span>
+                      <span class="font-bold text-emerald-400">$8,9B en FCI + Reintegros 100%</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Resumen de Indicadores Clave del Cruce -->
+              <div class="p-3 rounded-xl colectivo-led flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span class="text-sol font-bold">📌 VEREDICTO ESTADÍSTICO:</span>
+                <span class="text-slate-200">La caída interanual de SUBE (<strong>-22,0% en viajes</strong> y <strong>-15,27% en monto real</strong>) fue absorbida de forma exacta por el salto de <strong>VQR (+464,3% i.a.)</strong> y los <strong>115M de viajes EMV/NFC</strong>.</span>
+              </div>
+            </div>
+
+            <!-- VISTA 2: MODELO ESTRELLA (STAR SCHEMA) DE LA CAPA GOLD -->
+            <div id="closing-view-star" class="hidden space-y-3">
+              <div class="p-3.5 rounded-xl bg-slate-950 border border-arg/40 font-mono text-xs">
+                <div class="flex items-center justify-between text-sol border-b border-slate-800 pb-1.5 mb-2.5">
+                  <span class="font-bold">ESQUEMA ESTRELLA • TABLA DE HECHOS CENTRAL: fact_transacciones_movilidad</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded bg-sol/20 text-sol">Grano: Mensual × Región × Modo × Medio</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px]">
+                  <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <span class="text-arg font-bold block mb-1">1. dim_calendario (Alineación Lag)</span>
+                    <p class="text-slate-300">Atributos: <code>periodo_id</code>, <code>lag_publicacion</code> (T, T-1, T-2), <code>dias_habiles_mes</code>. Sincroniza el corte homogéneo de Julio 2026.</p>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <span class="text-emerald-400 font-bold block mb-1">2. dim_geografia_indec (6 Regiones)</span>
+                    <p class="text-slate-300">Mapea las 24 provincias + nulos de Subte CABA hacia las 6 regiones pampeanas/INDEC para cruzar con el IPC regional.</p>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <span class="text-purple-300 font-bold block mb-1">3. dim_medio_pago (Bucle & Nota 11)</span>
+                    <p class="text-slate-300">Clasifica <code>Cerrado (SUBE)</code> vs. <code>Abierto (VQR, EMV TD/TC/Prepaga)</code> y aplica el flag <code>methodological_break_tc</code>.</p>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                    <span class="text-rose-400 font-bold block mb-1">4. dim_deflactor_ipc (Base Dic-16=100)</span>
+                    <p class="text-slate-300">Almacena índices Nivel General, División Transporte y Apertura <strong>Transporte Público (+38,1% GBA)</strong> para montos constantes.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- PIE DE PÁGINA ESTILO NOMENCLADOR DE ESTACIÓN -->
+  <footer class="border-t border-arg/25 bg-slate-950/95 px-4 lg:px-8 py-2.5 text-xs text-slate-400">
+    <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="subte-badge subte-badge-sm bg-arg text-slate-950">🇦🇷</span>
+        <span class="text-slate-300 font-medium">Red de Movilidad Urbana Argentina • BCRA (Ago-26) • INDEC (Sep-26) • Sec. Transporte CKAN SUBE • Payway/Lyra (2T-26)</span>
+      </div>
+      <div class="font-mono text-[11px] text-arg">
+        Navegación por Estaciones: Teclas <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-white">←</kbd> <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-white">→</kbd> o Discos Superiores (1 a 4)
+      </div>
+    </div>
+  </footer>
+
+  <!-- LÓGICA JAVASCRIPT Y GRÁFICOS CHART.JS -->
+  <script>
+    lucide.createIcons();
+
+    // =========================================================================
+    // NAVEGACIÓN DE LAS 4 ESTACIONES (SLIDES)
+    // =========================================================================
+    let currentSlide = 1;
+    const totalSlides = 4;
+
+    const stationStyles = {
+      1: { bg: 'bg-lineaA text-slate-950 shadow-md', badgeBg: 'bg-slate-950 text-lineaA border border-lineaA', label: 'Fuentes & Medallion' },
+      2: { bg: 'bg-lineaB text-white shadow-md', badgeBg: 'bg-slate-950 text-white border border-white', label: 'Macro, Boletos & IPC' },
+      3: { bg: 'bg-lineaD text-white shadow-md', badgeBg: 'bg-slate-950 text-emerald-400 border border-emerald-400', label: 'Molinete & Tijeras' },
+      4: { bg: 'bg-lineaH text-slate-950 shadow-md', badgeBg: 'bg-slate-950 text-lineaH border border-lineaH', label: 'Cierre & Ecosistema' }
+    };
+
+    const inactiveBadges = {
+      1: 'bg-lineaA text-white',
+      2: 'bg-lineaB text-white',
+      3: 'bg-lineaD text-white',
+      4: 'bg-lineaH text-slate-950'
+    };
+
+    function goToSlide(slideIndex) {
+      if (slideIndex < 1 || slideIndex > totalSlides) return;
+      currentSlide = slideIndex;
+
+      for (let i = 1; i <= totalSlides; i++) {
+        const el = document.getElementById(`slide-${i}`);
+        const btn = document.getElementById(`nav-btn-${i}`);
+        if (i === currentSlide) {
+          el.classList.add('active');
+          btn.className = `relative z-10 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${stationStyles[i].bg}`;
+        } else {
+          el.classList.remove('active');
+          btn.className = "relative z-10 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 bg-slate-900 text-slate-300 hover:text-white border border-slate-700";
+        }
+      }
+
+      document.getElementById('slide-counter').textContent = `EST ${currentSlide}/4`;
+
+      if (currentSlide === 2) {
+        setTimeout(() => {
+          initOrUpdateMacroChart(currentMacroMode);
+          initOrUpdateIpcChart();
+        }, 50);
+      } else if (currentSlide === 3) {
+        setTimeout(() => {
+          initOrUpdateScissorsChart();
+        }, 50);
+      }
+    }
+
+    function nextSlide() {
+      goToSlide(currentSlide < totalSlides ? currentSlide + 1 : 1);
+    }
+
+    function prevSlide() {
+      goToSlide(currentSlide > 1 ? currentSlide - 1 : totalSlides);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') nextSlide();
+      if (e.key === 'ArrowLeft') prevSlide();
+    });
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    // =========================================================================
+    // ESTACIÓN 1: ASIMETRÍAS Y EXPLORADOR MEDALLION
+    // =========================================================================
+    function setAsymmetryMode(mode) {
+      const rawEls = document.querySelectorAll('.asym-raw');
+      const cleanEls = document.querySelectorAll('.asym-clean');
+      const btns = {
+        both: document.getElementById('asym-btn-both'),
+        raw: document.getElementById('asym-btn-raw'),
+        clean: document.getElementById('asym-btn-clean')
+      };
+
+      Object.values(btns).forEach(b => {
+        b.className = "px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition";
+      });
+      btns[mode].className = "px-2.5 py-1 rounded-lg font-bold bg-arg text-slate-950 transition";
+
+      rawEls.forEach(el => el.style.display = (mode === 'clean') ? 'none' : 'block');
+      cleanEls.forEach(el => el.style.display = (mode === 'raw') ? 'none' : 'block');
+    }
+
+    const medallionData = {
+      bronze: {
+        badge: 'CAPA BRONZE • INGESTA INMUTABLE (RAW DATA)',
+        color: 'text-amber-400',
+        items: [
+          { title: 'CSVs Diarios SUBE (2024–2026) & CIMPRA 544', desc: 'Archivos crudos tal como salen del portal CKAN de Transporte: incluyen nulos geográficos en las líneas de Subte (A, B, C, D, E, H) y filas de subtotales.' },
+          { title: 'API BCRA v4.0 + Informe Pagos Minoristas (Ago-26)', desc: 'Series con desfase temporal nativo: PCT y VQR en Ago-26 (T); SUBE, Débito y Crédito en Jul-26 (T-1); Prepagas en Jun-26 (T-2).' },
+          { title: 'INDEC IPC Aperturas + Índices Payway/Lyra', desc: 'Índices regionales Laspeyres (base Dic-2016=100) y reportes de adquirencia con 115M de viajes EMV/NFC.' }
+        ]
+      },
+      silver: {
+        badge: 'CAPA SILVER • 4 REGLAS CRÍTICAS DE LIMPIEZA Y RESCATE',
+        color: 'text-arg',
+        items: [
+          { title: '1. Rescate de las Líneas de Subte A-B-C-D-E-H (+19,7M viajes/mes)', desc: 'En el dataset SUBE, toda fila con tipo_transporte == \'subte\' trae jurisdiccion, provincia y municipio en NULL. Se imputa CABA y AMBA = \'SI\' para evitar que un filtro geográfico borre el 100% del Subte porteño.' },
+          { title: '2. Filtro Anti-Duplicación de Tarjetas Únicas (4,71M vs 5,47M)', desc: 'En el dataset de usuarios únicos por día se filtra tipo_transporte != \'total\' para no sumar el subtotal general y evitar inflar los usuarios activos un +16%.' },
+          { title: '3. Consolidación por Nota 11 BCRA (Jul-26)', desc: 'Se marca methodological_break_tc = True y se consolida Crédito (159,31M) + Prepagas (58,50M) = 217,81M tras la reclasificación de emisores.' },
+          { title: '4. Desempaquetado de Daily Batching EMV (~2,2 viajes/cargo)', desc: 'Los 115M de viajes contactless (60M Payway + 55M Lyra) equivalen a ~52,3M de cargos liquidados en resúmenes bancarios.' }
+        ]
+      },
+      gold: {
+        badge: 'CAPA GOLD • MATRIZ ANALÍTICA HOMOGÉNEA Y DEFLACTADA',
+        color: 'text-sol',
+        items: [
+          { title: 'Corte Homogéneo Julio 2026 (Lag T-1)', desc: 'Comparativa exacta mes contra mes: SUBE (270,21M viajes | $193,68 mil M) vs. VQR (24,40M viajes | $31,72 mil M) sobre un universo de 797,74M operaciones.' },
+          { title: 'Deflación con IPC Transporte Público (+38,1% GBA)', desc: 'Reconcilia la caída real del -22,0% en boletos físicos SUBE con la contracción del -15,27% en recaudación real ajustada por tarifa.' },
+          { title: 'Puente Tarifario AMBA y Simulador de Elasticidad', desc: 'Aísla el efecto de Tarifa Social (-55%), Red SUBE, ausencia de trenes en VQR y penalidad a SUBE sin registrar.' }
+        ]
+      }
+    };
+
+    function selectMedallion(layer) {
+      const tabs = ['bronze', 'silver', 'gold'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`med-tab-${t}`);
+        if (t === layer) {
+          btn.className = "p-2.5 rounded-xl border text-left transition bg-slate-800 border-arg shadow-md";
+        } else {
+          btn.className = "p-2.5 rounded-xl border text-left transition bg-slate-900/70 border-slate-800 hover:border-slate-600";
+        }
+      });
+
+      const data = medallionData[layer];
+      document.getElementById('medallion-content').innerHTML = `
+        <div class="text-[11px] font-mono font-bold ${data.color} mb-1">${data.badge}</div>
+        <div class="space-y-2">
+          ${data.items.map(item => `
+            <div class="p-2.5 rounded-xl bg-slate-900/95 border border-slate-800">
+              <p class="text-xs font-bold text-white">${item.title}</p>
+              <p class="text-[11px] text-slate-300 mt-0.5 leading-relaxed">${item.desc}</p>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    selectMedallion('silver');
+
+    // =========================================================================
+    // ESTACIÓN 2: GRÁFICOS MACRO (3 VISTAS) E IPC TRANSPORTE PÚBLICO
+    // =========================================================================
+    let macroChartInstance = null;
+    let ipcChartInstance = null;
+    let currentMacroMode = 'share';
+
+    function switchMacroChart(mode) {
+      currentMacroMode = mode;
+      const btns = {
+        share: document.getElementById('macro-btn-share'),
+        waterfall: document.getElementById('macro-btn-waterfall'),
+        tarifas: document.getElementById('macro-btn-tarifas')
+      };
+      const titleEl = document.getElementById('macro-chart-title');
+      const subEl = document.getElementById('macro-chart-subtitle');
+
+      Object.values(btns).forEach(b => {
+        b.className = "px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition";
+      });
+
+      if (mode === 'share') {
+        btns.share.className = "px-2.5 py-1 rounded-lg font-bold bg-sube text-white transition";
+        titleEl.textContent = "Frecuencia Física (797,74M op.) vs. Valor Monetario ($21,80B)";
+        subEl.innerHTML = "<strong>Corte Homogéneo Julio 2026:</strong> SUBE aporta el <strong>33,87%</strong> de las transacciones (270,21M), pero solo el <strong>0,89%</strong> del monto ($193,68 mil M). Tarjeta de Crédito lidera en valor con el <strong>46,00%</strong> ($10,03B).";
+      } else if (mode === 'waterfall') {
+        btns.waterfall.className = "px-2.5 py-1 rounded-lg font-bold bg-arg text-slate-950 transition";
+        titleEl.textContent = "Puente Waterfall del Ticket: De $716,78 (SUBE) a $1.383,01 (VQR)";
+        subEl.innerHTML = "<strong>Cero sobreprecio en tarifa plena registrada:</strong> La brecha bruta de <strong>+$666,23 (+92,9%)</strong> se explica porque VQR no tiene Tarifa Social (-55%), Red SUBE ni Trenes, y concentra un 10,9% de viajes en Subte CABA.";
+      } else {
+        btns.tarifas.className = "px-2.5 py-1 rounded-lg font-bold bg-sol text-slate-950 transition";
+        titleEl.textContent = "Cuadro Tarifario AMBA (Nov 2026): Social vs. Plena/QR vs. Sin Registrar";
+        subEl.innerHTML = "<strong>Incentivo a migrar:</strong> Mientras el beneficiario de Tarifa Social (-55%) permanece en SUBE, el pasajero con <strong>SUBE Sin Registrar</strong> sufre recargos punitivos de hasta <strong>$4.285,62</strong> en PBA y <strong>$2.999,60</strong> en Subte.";
+      }
+
+      initOrUpdateMacroChart(mode);
+    }
+
+    function initOrUpdateMacroChart(mode) {
+      const ctx = document.getElementById('macroChart');
+      if (!ctx) return;
+      if (macroChartInstance) macroChartInstance.destroy();
+
+      if (mode === 'share') {
+        macroChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['SUBE (270,2M)', 'Débito TD (172,0M)', 'Crédito TC (159,3M)', 'PCT QR (116,9M)', 'Prepagas (54,9M)', 'VQR Jul (24,4M)'],
+            datasets: [
+              {
+                label: '% Share en Cantidad de Operaciones',
+                data: [33.87, 21.56, 19.97, 14.65, 6.89, 3.06],
+                backgroundColor: '#74ACDF',
+                borderRadius: 6
+              },
+              {
+                label: '% Share en Monto ($ ARS)',
+                data: [0.89, 25.98, 46.00, 13.76, 4.50, 0.15],
+                backgroundColor: '#F6B40E',
+                borderRadius: 6
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#F8FAFC', font: { family: 'Inter', size: 11 } } },
+              tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.y.toFixed(2)}%` } }
+            },
+            scales: {
+              x: { ticks: { color: '#CBD5E1', font: { size: 11 } }, grid: { display: false } },
+              y: { ticks: { color: '#94A3B8', callback: (v) => v + '%' }, grid: { color: 'rgba(148, 163, 184, 0.12)' } }
+            }
+          }
+        });
+      } else if (mode === 'waterfall') {
+        macroChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['SUBE Jul-26', '+Sin T. Social', '+Sin Red SUBE', '+Sin Trenes', '+10,9% Subte', '+Suba Ago', 'VQR Ago-26'],
+            datasets: [{
+              label: 'Ticket Promedio ($ ARS)',
+              data: [
+                [0, 716.78],
+                [716.78, 981.78],
+                [981.78, 1126.78],
+                [1126.78, 1221.78],
+                [1221.78, 1331.97],
+                [1331.97, 1383.01],
+                [0, 1383.01]
+              ],
+              backgroundColor: ['#0072CE', '#008061', '#008061', '#662D91', '#F6B40E', '#EE1D23', '#00AEEF'],
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (c) => {
+                    const r = c.raw;
+                    if (c.dataIndex === 0 || c.dataIndex === 6) return `Ticket Promedio: $${r[1].toLocaleString('es-AR')}`;
+                    return `Escalón: +$${(r[1] - r[0]).toFixed(2)} (Acum: $${r[1].toFixed(2)})`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: { ticks: { color: '#CBD5E1', font: { size: 10 } }, grid: { display: false } },
+              y: { ticks: { color: '#94A3B8', callback: (v) => '$' + v }, grid: { color: 'rgba(148, 163, 184, 0.12)' } }
+            }
+          }
+        });
+      } else {
+        // Vista 3: Cuadro Tarifario AMBA (Noviembre 2026)
+        macroChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['🚌 Colectivo CABA (0-3km)', '🚌 Colectivo PBA (0-3km)', '🚌 Colectivo PBA (>27km)', '🚇 Subte CABA (Líneas A-H)', '🚆 Trenes AMBA (Secc. 1)'],
+            datasets: [
+              {
+                label: 'Tarifa Social SUBE (-55%)',
+                data: [429.75, 568.66, 964.26, 849.15, 202.50],
+                backgroundColor: '#008061',
+                borderRadius: 5
+              },
+              {
+                label: 'Plena SUBE Reg. / QR / NFC',
+                data: [955.00, 1263.69, 2142.81, 1887.00, 450.00],
+                backgroundColor: '#00AEEF',
+                borderRadius: 5
+              },
+              {
+                label: 'SUBE Sin Registrar (Penalizada)',
+                data: [1518.45, 2527.38, 4285.62, 2999.60, 900.00],
+                backgroundColor: '#EE1D23',
+                borderRadius: 5
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#F8FAFC', font: { size: 11 } } },
+              tooltip: { callbacks: { label: (c) => `${c.dataset.label}: $${c.parsed.y.toLocaleString('es-AR')}` } }
+            },
+            scales: {
+              x: { ticks: { color: '#E2E8F0', font: { size: 10, weight: 'bold' } }, grid: { display: false } },
+              y: { ticks: { color: '#94A3B8', callback: (v) => '$' + v }, grid: { color: 'rgba(148, 163, 184, 0.12)' } }
+            }
+          }
+        });
+      }
+    }
+
+    function initOrUpdateIpcChart() {
+      const ctx = document.getElementById('ipcChart');
+      if (!ctx) return;
+      if (ipcChartInstance) ipcChartInstance.destroy();
+
+      ipcChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: [
+            '🚗 Compra Vehículos (GBA)',
+            '📊 IPC Nivel General (GBA)',
+            '📦 Div. Transporte Agregada (GBA)',
+            '🚌 Transporte Público (Pampeana)',
+            '🚇🚌 Transporte Público (GBA/AMBA)',
+            '🚌 Transporte Público (NOA)',
+            '🚌 Transporte Público (Cuyo)'
+          ],
+          datasets: [{
+            label: 'Inflación Acumulada 9M (Dic 2025 – Sep 2026)',
+            data: [6.9, 23.6, 23.7, 37.4, 38.1, 42.3, 43.2],
+            backgroundColor: [
+              '#008061',
+              '#64748B',
+              '#0072CE',
+              '#EE1D23',
+              '#EE1D23',
+              '#EE1D23',
+              '#EE1D23'
+            ],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (c) => `Acumulado 9 Meses: +${c.parsed.x}%` } }
+          },
+          scales: {
+            x: { ticks: { color: '#94A3B8', callback: (v) => '+' + v + '%' }, grid: { color: 'rgba(148, 163, 184, 0.12)' } },
+            y: { ticks: { color: '#F8FAFC', font: { size: 10, weight: '600' } }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // =========================================================================
+    // ESTACIÓN 3: SIMULADOR DEL MOLINETE (40 VIAJES SUBTE) Y LAS TIJERAS
+    // =========================================================================
+    const riderProfiles = {
+      1: {
+        name: "1. SUBE Sin Registrar (Tarifa Penalizada en Molinete)",
+        desc: "Abona tarifa punitiva por tarjeta no nominalizada, aunque accede al descuento automático por frecuencia de Emova (viajes 21 a 40).",
+        bolsillo: 88397,
+        estatal: 12628,
+        estatalLabel: "Descuento Frec. Emova",
+        privado: 0,
+        badge: "Recargo Punitivo",
+        badgeColor: "text-rose-300 bg-rose-950/70 border-rose-600/50"
+      },
+      2: {
+        name: "2. SUBE Registrada (Pasajero Estándar Nominalizado)",
+        desc: "Paga tarifa plena ($1.817 en Oct-26) y recibe bonificación progresiva del 20% (viajes 21-30) y 30% (viajes 31-40) en la misma tarjeta.",
+        bolsillo: 63595,
+        estatal: 9085,
+        estatalLabel: "Ahorro Red Emova (20-30%)",
+        privado: 0,
+        badge: "Tarifa Plena SUBE",
+        badgeColor: "text-arg bg-sky-950/70 border-arg/50"
+      },
+      3: {
+        name: "3. SUBE con Tarifa Social Federal (-55% + Frecuencia)",
+        desc: "Jubilados, pensionados, AUH y veteranos. El subsidio estatal directo del 55% en la SUBE blinda su fidelidad frente a bancos.",
+        bolsillo: 25438,
+        estatal: 47242,
+        estatalLabel: "Subsidio Estatal (-55%)",
+        privado: 0,
+        badge: "Demanda Cautiva SUBE",
+        badgeColor: "text-emerald-300 bg-emerald-950/70 border-emerald-600/50"
+      },
+      4: {
+        name: "4. Pasajero con 1 Promo NFC Celular (Ej. BBVA / Mastercard)",
+        desc: "Pasa una única tarjeta contactless/NFC todo el mes: recibe $25.000 de tope de reintegro bancario y luego paga tarifa plena.",
+        bolsillo: 47680,
+        estatal: 0,
+        estatalLabel: "Subsidio Estatal",
+        privado: 25000,
+        badge: "1 Tope Bancario ($25k)",
+        badgeColor: "text-purple-300 bg-purple-950/70 border-purple-500/50"
+      },
+      5: {
+        name: "5. Cazador 'Multi-Homing' (Rotación de Billeteras QR y NFC)",
+        desc: "Rota 3 a 4 medios en el molinete (Naranja X $30k + BNA+ $27k + BBVA $25k / MP $15k) con reintegros del 100%, viajando gratis todo el mes.",
+        bolsillo: 0,
+        estatal: 0,
+        estatalLabel: "Subsidio Estatal",
+        privado: 72680,
+        badge: "Boleto Neto $0 (100% Cashback)",
+        badgeColor: "text-sol bg-amber-950/80 border-sol/70"
+      }
+    };
+
+    function selectRiderProfile(id) {
+      for (let i = 1; i <= 5; i++) {
+        const b = document.getElementById(`prof-btn-${i}`);
+        if (i === id) {
+          b.className = "p-2 rounded-xl border text-left transition bg-slate-800 border-arg shadow-md";
+        } else {
+          b.className = "p-2 rounded-xl border text-left transition bg-slate-900 border-slate-800 hover:border-slate-600";
+        }
+      }
+
+      const p = riderProfiles[id];
+      const totalRef = Math.max(p.bolsillo + p.estatal + p.privado, 72680);
+      const pctBolsillo = Math.round((p.bolsillo / totalRef) * 100);
+      const pctEstatal = Math.round((p.estatal / totalRef) * 100);
+      const pctPrivado = Math.round((p.privado / totalRef) * 100);
+
+      document.getElementById('simulator-output').innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h4 class="text-xs sm:text-sm font-extrabold text-white">${p.name}</h4>
+          <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full border font-bold ${p.badgeColor}">${p.badge}</span>
+        </div>
+        <p class="text-xs text-slate-300">${p.desc}</p>
+        
+        <div class="grid grid-cols-3 gap-2 pt-1">
+          <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+            <span class="text-[10px] font-mono uppercase text-slate-400 block">Gasto Bolsillo</span>
+            <span class="text-sm sm:text-base font-black font-mono ${p.bolsillo === 0 ? 'text-sol' : 'text-white'}">$${p.bolsillo.toLocaleString('es-AR')}</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+            <span class="text-[10px] font-mono uppercase text-emerald-400 block">${p.estatalLabel}</span>
+            <span class="text-sm sm:text-base font-black font-mono text-emerald-400">$${p.estatal.toLocaleString('es-AR')}</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+            <span class="text-[10px] font-mono uppercase text-arg block">Cashback Privado</span>
+            <span class="text-sm sm:text-base font-black font-mono text-arg">$${p.privado.toLocaleString('es-AR')}</span>
+          </div>
+        </div>
+
+        <div class="space-y-1 pt-1">
+          <div class="flex justify-between text-[10px] font-mono text-slate-400">
+            <span>Quién paga los 40 viajes de Subte (Líneas A-B-C-D-E-H)</span>
+            <span>Tarifa Plena: $72.680</span>
+          </div>
+          <div class="w-full h-2.5 rounded-full bg-slate-900 overflow-hidden flex border border-slate-800">
+            <div style="width: ${pctBolsillo}%" class="bg-sube transition-all duration-300"></div>
+            <div style="width: ${pctEstatal}%" class="bg-lineaD transition-all duration-300"></div>
+            <div style="width: ${pctPrivado}%" class="bg-sol transition-all duration-300"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    selectRiderProfile(5);
+
+    let scissorsChartInstance = null;
+    function initOrUpdateScissorsChart() {
+      const ctx = document.getElementById('scissorsChart');
+      if (!ctx) return;
+      if (scissorsChartInstance) scissorsChartInstance.destroy();
+
+      const labels = ['Jul-25', 'Ago-25', 'Oct-25', 'Dic-25', 'Feb-26', 'Abr-26', 'Jun-26', 'Jul-26', 'Ago-26'];
+      const subeData = [345.0, 351.2, 340.5, 326.0, 294.0, 286.5, 276.8, 270.21, null];
+      const vqrData = [1.30, 4.66, 8.90, 13.40, 16.80, 20.10, 22.90, 24.40, 26.33];
+
+      scissorsChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Viajes SUBE (Millones - Eje Izq. Lag T-1)',
+              data: subeData,
+              borderColor: '#74ACDF',
+              backgroundColor: 'rgba(116, 172, 223, 0.15)',
+              borderWidth: 3,
+              pointRadius: 4,
+              pointBackgroundColor: '#74ACDF',
+              tension: 0.3,
+              fill: true,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Viajes con QR - VQR (Millones - Eje Der. Lag T)',
+              data: vqrData,
+              borderColor: '#F6B40E',
+              backgroundColor: 'rgba(246, 180, 14, 0.20)',
+              borderWidth: 3,
+              pointRadius: 5,
+              pointBackgroundColor: '#F6B40E',
+              tension: 0.3,
+              fill: true,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: '#F8FAFC', font: { size: 11 } } },
+            tooltip: {
+              callbacks: {
+                label: (c) => {
+                  if (c.parsed.y === null) return 'SUBE Ago-26: En proceso de cierre (Lag T-1)';
+                  return `${c.dataset.label.split('(')[0]}: ${c.parsed.y.toFixed(2)}M viajes`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: { ticks: { color: '#CBD5E1', font: { size: 11 } }, grid: { color: 'rgba(148, 163, 184, 0.08)' } },
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              min: 240,
+              max: 370,
+              title: { display: true, text: 'SUBE (Millones)', color: '#74ACDF', font: { size: 11, weight: 'bold' } },
+              ticks: { color: '#74ACDF', callback: (v) => v + 'M' },
+              grid: { color: 'rgba(148, 163, 184, 0.12)' }
+            },
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              min: 0,
+              max: 30,
+              title: { display: true, text: 'VQR (Millones)', color: '#F6B40E', font: { size: 11, weight: 'bold' } },
+              ticks: { color: '#F6B40E', callback: (v) => v + 'M' },
+              grid: { drawOnChartArea: false }
+            }
+          }
+        }
+      });
+    }
+
+    // =========================================================================
+    // ESTACIÓN 4: PROTOCOLO Y FILTRO DE GUION PARA 2 ORADORES
+    // =========================================================================
+    // ESTACIÓN 4: PROTOCOLO Y CONMUTADOR DE ECOSISTEMA / ESQUEMA ESTRELLA
+    // =========================================================================
+    function updateProtocolCount() {
+      const checks = document.querySelectorAll('.protocol-check');
+      let active = 0;
+      checks.forEach(c => { if (c.checked) active++; });
+      document.getElementById('protocol-progress').textContent = `${active}/5 Activas`;
+    }
+
+    function switchClosingTab(tab) {
+      const btnBif = document.getElementById('close-btn-bifurcacion');
+      const btnStar = document.getElementById('close-btn-star');
+      const viewBif = document.getElementById('closing-view-bifurcacion');
+      const viewStar = document.getElementById('closing-view-star');
+
+      if (tab === 'bifurcacion') {
+        btnBif.className = "px-2.5 py-1 rounded-lg font-bold bg-arg text-slate-950 transition";
+        btnStar.className = "px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition";
+        viewBif.classList.remove('hidden');
+        viewStar.classList.add('hidden');
+      } else {
+        btnStar.className = "px-2.5 py-1 rounded-lg font-bold bg-arg text-slate-950 transition";
+        btnBif.className = "px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition";
+        viewStar.classList.remove('hidden');
+        viewBif.classList.add('hidden');
+      }
+    }
+  </script>
+</body>
+</html>
